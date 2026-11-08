@@ -6,7 +6,7 @@ You can explore all of the results, with interactive charts and a live trading d
 
 ## About me
 
-I'm Damion Marshall, a Columbia University graduate (BA, Mathematics–Statistics) seeking quantitative trading and research roles. I enjoy building strategies end to end: sourcing the data, designing a fair test, and being honest about what the results do and don't show. If you'd like to talk about any of this work, I'd be glad to hear from you at [damion.marshall@pm.me](mailto:damion.marshall@pm.me).
+I'm Damion Marshall, a Columbia University graduate (BA, Mathematics–Statistics) seeking quantitative trading and research roles. I enjoy building strategies end to end: sourcing the data, designing a fair test, and being honest about what the results do and don't show. If you'd like to talk about any of this work, I'd be glad to hear from you at [contact@damionm.io](mailto:contact@damionm.io).
 
 ## How the projects fit together
 

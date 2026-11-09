@@ -14,6 +14,7 @@ func_lib only requires numpy, pandas and plotly.
 """
 import random
 from collections import deque
+from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
@@ -1013,6 +1014,49 @@ def gbm_expected_value(S, K, T, r, mu, sigma, kind='call'):
     return np.exp((np.asarray(mu) - np.asarray(r)) * T) * bs_price(S, K, T, mu, sigma, 0.0, kind)
 
 
+@dataclass
+class GBM:
+    """A geometric Brownian motion dS = mu S dt + sigma S dW with fixed annual mu and sigma.
+
+    A thin, readable wrapper around the tested functions above (gbm_paths, gbm_expected_value),
+    for when one set of parameters is in play: fitting a sample, a forecast range, a fan chart.
+    Walk-forward code that re-estimates mu and sigma every day can keep calling the functions
+    directly, since they accept arrays of parameters.
+    """
+    mu: float = np.nan      # annual drift (decimal)
+    sigma: float = np.nan   # annual volatility (decimal)
+
+    @classmethod
+    def fit(cls, log_returns, periods_per_year=TRADING_DAYS):
+        """Maximum-likelihood fit from per-period log returns (NaNs ignored).
+
+        sigma = std(log r) * sqrt(periods); mu = mean(log r) * periods + sigma^2 / 2.
+        """
+        x = np.asarray(log_returns, dtype=float)
+        sigma = np.nanstd(x, ddof=1) * np.sqrt(periods_per_year)
+        return cls(mu=np.nanmean(x) * periods_per_year + 0.5 * sigma ** 2, sigma=sigma)
+
+    @classmethod
+    def fit_prices(cls, prices, periods_per_year=TRADING_DAYS):
+        """Maximum-likelihood fit from a price series."""
+        return cls.fit(np.diff(np.log(np.asarray(prices, dtype=float))), periods_per_year)
+
+    def forecast(self, S0, T, confidence=0.90):
+        """Expected price S0 e^(mu T) and the central `confidence` range of the lognormal S_T."""
+        m, s = (self.mu - 0.5 * self.sigma ** 2) * T, self.sigma * np.sqrt(T)
+        lo, hi = S0 * np.exp(norm.ppf([(1 - confidence) / 2, (1 + confidence) / 2], loc=m, scale=s))
+        return {'expected': S0 * np.exp(self.mu * T), 'median': S0 * np.exp(m),
+                'interval': (lo, hi), 'confidence': confidence}
+
+    def simulate(self, S0, T, n_steps, n_paths, seed=None, antithetic=True):
+        """Simulated price paths, shape (n_steps + 1, n_paths). See gbm_paths."""
+        return gbm_paths(S0, self.mu, self.sigma, T, n_steps, n_paths, seed=seed, antithetic=antithetic)
+
+    def option_value(self, S, K, T, r, kind='call'):
+        """Real-world forecast value of a European option, discounted at r. See gbm_expected_value."""
+        return gbm_expected_value(S, K, T, r, self.mu, self.sigma, kind)
+
+
 def daily_variance_proxy(ohlc):
     """Range-based daily variance: overnight gap^2 + Garman-Klass intraday estimator."""
     overnight = np.log(ohlc['Open'] / ohlc['Close'].shift(1)) ** 2
@@ -1264,7 +1308,7 @@ def run_options_episode(market_states, md, cfg, agent=None, policy=None, train=F
     """Simulate one pass of an options book driven by a DQN `agent` or a `policy(t, state)` callable.
 
     market_states : (T, n) array of market features
-    md            : dict of aligned arrays: dates, S, iv, r, sigma_f, mu, call_edge, put_edge, and
+    md            : dict of aligned arrays: dates, S, iv, rf (risk-free rate), sigma_f, mu, call_edge, put_edge, and
                     optionally short_allowed (bool), which blocks NEW short positions where False
     cfg           : tenor_days, moneyness, cost_vol, contract_mult, capital, max_positions, and optionally
                     max_short_positions, short_margin_pct (0.20), min_margin_pct (0.10)
@@ -1284,7 +1328,7 @@ def run_options_episode(market_states, md, cfg, agent=None, policy=None, train=F
         def tqdm(it, **_):
             return it
 
-    S, iv, r, dates = md['S'], md['iv'], md['r'], md['dates']
+    S, iv, rf, dates = md['S'], md['iv'], md['rf'], md['dates']
     short_allowed = md.get('short_allowed')
     tenor, mult, cap = cfg['tenor_days'], cfg['contract_mult'], cfg['capital']
     max_pos = cfg['max_positions']
@@ -1298,7 +1342,7 @@ def run_options_episode(market_states, md, cfg, agent=None, policy=None, train=F
         kind = p['Type'].lower()
         if tau == 0:
             return max(S[t] - p['Strike'], 0) if kind == 'call' else max(p['Strike'] - S[t], 0)
-        return float(bs_price(S[t], p['Strike'], tau, r[t], max(iv[t] + vol_shift, 0.01), 0.0, kind))
+        return float(bs_price(S[t], p['Strike'], tau, rf[t], max(iv[t] + vol_shift, 0.01), 0.0, kind))
 
     def margin_used(t):
         return sum(short_margin_requirement(p['Type'].lower(), S[t], p['Strike'], value(p, t), mult, m_pct, m_min)
@@ -1338,7 +1382,7 @@ def run_options_episode(market_states, md, cfg, agent=None, policy=None, train=F
             kind, sign = _OPEN_ACTIONS[action]
             strike = S[t] * (1 + m) if kind == 'call' else S[t] * (1 - m)
             T = tenor / TRADING_DAYS
-            premium = float(bs_price(S[t], strike, T, r[t], max(iv[t] + sign * cost, 0.01), 0.0, kind))
+            premium = float(bs_price(S[t], strike, T, rf[t], max(iv[t] + sign * cost, 0.01), 0.0, kind))
             free_equity = mark(t) - margin_used(t)
             if sign > 0:
                 ok = free_equity >= premium * mult
@@ -1348,7 +1392,7 @@ def run_options_episode(market_states, md, cfg, agent=None, policy=None, train=F
                 new_margin = short_margin_requirement(kind, S[t], strike, premium, mult, m_pct, m_min)
                 ok = allowed and n_short < max_short and free_equity >= new_margin
             if ok:
-                greeks = bs_greeks(S[t], strike, T, r[t], iv[t], 0.0, kind)
+                greeks = bs_greeks(S[t], strike, T, rf[t], iv[t], 0.0, kind)
                 side = 'Long' if sign > 0 else 'Short'
                 p = {'Position': f'{side} {kind.title()}', 'Type': kind.title(), 'Side': side,
                      'Entry Date': dates[t], 'Expiry Date': dates[min(t + tenor, n - 1)], 'Strike': strike,

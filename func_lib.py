@@ -14,6 +14,7 @@ func_lib only requires numpy, pandas and plotly.
 """
 import random
 from collections import deque
+from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
@@ -1011,6 +1012,49 @@ def gbm_expected_value(S, K, T, r, mu, sigma, kind='call'):
     """
     T = np.maximum(np.asarray(T, dtype=float), 1e-10)
     return np.exp((np.asarray(mu) - np.asarray(r)) * T) * bs_price(S, K, T, mu, sigma, 0.0, kind)
+
+
+@dataclass
+class GBM:
+    """A geometric Brownian motion dS = mu S dt + sigma S dW with fixed annual mu and sigma.
+
+    A thin, readable wrapper around the tested functions above (gbm_paths, gbm_expected_value),
+    for when one set of parameters is in play: fitting a sample, a forecast range, a fan chart.
+    Walk-forward code that re-estimates mu and sigma every day can keep calling the functions
+    directly, since they accept arrays of parameters.
+    """
+    mu: float = np.nan      # annual drift (decimal)
+    sigma: float = np.nan   # annual volatility (decimal)
+
+    @classmethod
+    def fit(cls, log_returns, periods_per_year=TRADING_DAYS):
+        """Maximum-likelihood fit from per-period log returns (NaNs ignored).
+
+        sigma = std(log r) * sqrt(periods); mu = mean(log r) * periods + sigma^2 / 2.
+        """
+        x = np.asarray(log_returns, dtype=float)
+        sigma = np.nanstd(x, ddof=1) * np.sqrt(periods_per_year)
+        return cls(mu=np.nanmean(x) * periods_per_year + 0.5 * sigma ** 2, sigma=sigma)
+
+    @classmethod
+    def fit_prices(cls, prices, periods_per_year=TRADING_DAYS):
+        """Maximum-likelihood fit from a price series."""
+        return cls.fit(np.diff(np.log(np.asarray(prices, dtype=float))), periods_per_year)
+
+    def forecast(self, S0, T, confidence=0.90):
+        """Expected price S0 e^(mu T) and the central `confidence` range of the lognormal S_T."""
+        m, s = (self.mu - 0.5 * self.sigma ** 2) * T, self.sigma * np.sqrt(T)
+        lo, hi = S0 * np.exp(norm.ppf([(1 - confidence) / 2, (1 + confidence) / 2], loc=m, scale=s))
+        return {'expected': S0 * np.exp(self.mu * T), 'median': S0 * np.exp(m),
+                'interval': (lo, hi), 'confidence': confidence}
+
+    def simulate(self, S0, T, n_steps, n_paths, seed=None, antithetic=True):
+        """Simulated price paths, shape (n_steps + 1, n_paths). See gbm_paths."""
+        return gbm_paths(S0, self.mu, self.sigma, T, n_steps, n_paths, seed=seed, antithetic=antithetic)
+
+    def option_value(self, S, K, T, r, kind='call'):
+        """Real-world forecast value of a European option, discounted at r. See gbm_expected_value."""
+        return gbm_expected_value(S, K, T, r, self.mu, self.sigma, kind)
 
 
 def daily_variance_proxy(ohlc):

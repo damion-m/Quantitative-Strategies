@@ -38,7 +38,10 @@ RANGE_SELECTOR = dict(buttons=[
     dict(count=1, label='YTD', step='year', stepmode='todate'),
     dict(count=1, label='1Y', step='year', stepmode='backward'),
     dict(step='all', label='All'),
-], bgcolor='#1b1f2a', activecolor='#3a3f4b', font=dict(color='#e6e6e6'))
+], bgcolor='#1b1f2a', activecolor='#3a3f4b', font=dict(color='#e6e6e6'),
+    x=0, xanchor='left', y=1.02, yanchor='bottom')   # top-left, just above the plot; the legend is at the bottom
+
+THEME_MARGIN = dict(l=60, r=30, t=110, b=50)   # t: room for title + subtitle above the range buttons
 
 
 def set_plotly_theme():
@@ -47,12 +50,20 @@ def set_plotly_theme():
         paper_bgcolor=BG,
         plot_bgcolor=BG,
         font=dict(family='Inter, "Segoe UI", Helvetica, Arial, sans-serif', size=13, color='#e6e6e6'),
-        title=dict(font=dict(size=20, color='#ffffff'), x=0.01, xanchor='left'),
+        # Title pinned to the top edge, so a subtitle line grows downward into the margin rather than
+        # into the range buttons / legend / subplot titles that sit just above the plot area
+        title=dict(font=dict(size=20, color='#ffffff'), x=0.01, xanchor='left',
+                   yref='container', y=1, yanchor='top', pad=dict(t=14),
+                   subtitle=dict(font=dict(size=13, color='#9aa3b2'))),
         colorway=PALETTE,
         hovermode='x unified',
         hoverlabel=dict(bgcolor='#1b1f2a', bordercolor='#3a3f4b', font=dict(color='#e6e6e6')),
-        legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='left', x=0, bgcolor='rgba(0,0,0,0)'),
-        margin=dict(l=60, r=30, t=90, b=50),
+        # Legend centred along the bottom edge of the figure. At the top it collides with the range buttons,
+        # subplot titles and long titles once the window is narrow; down here Plotly grows the bottom
+        # margin to fit it, so it can wrap onto as many rows as it needs at any width.
+        legend=dict(orientation='h', yref='container', y=0, yanchor='bottom', xanchor='center', x=0.5,
+                    bgcolor='rgba(0,0,0,0)'),
+        margin=THEME_MARGIN,
         xaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.07)', zeroline=False,
                    showline=True, linecolor='#3a3f4b'),
         yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.07)', zeroline=False,
@@ -62,6 +73,19 @@ def set_plotly_theme():
 
 
 set_plotly_theme()   # applied on import so every func_lib chart is themed
+
+
+def subtitled(title, subtitle):
+    """A chart title with a smaller subtitle line underneath, e.g. title=subtitled('GBM edge', 'value / price − 1').
+
+    Plotly can't wrap a long title, so in a narrow window it gets cut off. Keep the headline short
+    and put the detail (parameters, dates, how to read the chart) in the subtitle.
+    """
+    return dict(text=title, subtitle=dict(text=subtitle))
+
+
+def has_subtitle(title):
+    return isinstance(title, dict) and bool(title.get('subtitle', {}).get('text'))
 
 
 def _rgba(hex_color, alpha):
@@ -818,7 +842,7 @@ def plot_behavior(df, result, title):
                                      (result['sells'], 'Sell', 'triangle-down', DOWN)]:
         fig.add_scatter(x=df.index[idx], y=close.iloc[idx], name=f'{name} signal', mode='markers',
                         marker=dict(symbol=symbol, size=10, color=color, line=dict(width=0.5, color='black')))
-    fig.update_layout(title=f'{title} | Total Gains: {format_price(profit)}', height=520,
+    fig.update_layout(title=subtitled(title, f'Total gains: {format_price(profit)}'), height=520,
                       yaxis_title='Price (USD)', xaxis=dict(rangeselector=RANGE_SELECTOR))
     fig.show()
 
@@ -1212,7 +1236,9 @@ def stats_table_figure(df, title, pct_rows=(), decimals=2, index_name='Metric', 
         cells=dict(values=columns, fill_color=stripes, line_color='#3a3f4b',
                    font=dict(color='#e6e6e6', size=12), align='left', height=28),
     ))
-    fig.update_layout(title=title, height=height or 110 + 30 * len(df), margin=dict(t=60, b=10, l=20, r=20))
+    subtitle_px = 22 if has_subtitle(title) else 0      # room for the subtitle line
+    fig.update_layout(title=title, height=height or 110 + subtitle_px + 30 * len(df),
+                      margin=dict(t=60 + subtitle_px, b=10, l=20, r=20))
     return fig
 
 
@@ -1528,7 +1554,7 @@ def plot_options_behavior(result, S, title):
                     row=4, col=1)
     fig.update_yaxes(tickprefix='$', row=3, col=1)
     fig.update_yaxes(range=[eq.min() * 0.97, eq.max() * 1.03], tickprefix='$', row=4, col=1)
-    fig.update_layout(title=f"{title} | Final equity {format_price(eq.iloc[-1])}", height=940,
+    fig.update_layout(title=subtitled(title, f'Final equity {format_price(eq.iloc[-1])}'), height=940,
                       barmode='relative', bargap=0)
     fig.show()
 

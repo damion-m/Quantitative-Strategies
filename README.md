@@ -20,7 +20,7 @@ Each project asks a harder question than the last, building on what came before:
 | 04 | GBM options RL agent | Can it trade options that it prices itself? | `gbm_options_rl_agent.ipynb` |
 | + | Risk parity | How should risk be balanced across asset classes? | `risk_parity_backtest.ipynb` |
 
-Every notebook draws on `func_lib.py`, a shared library for data handling, chronological splits, backtests, performance statistics, the DQN agent and its episode runners, option pricing and volatility models, and a common chart theme. Its core routines have been checked independently against reference implementations.
+Every notebook draws on `func_lib.py`, a shared library for data handling, chronological splits, backtests, performance statistics, the DQN agent and its episode runners, option pricing and volatility models (including a small `GBM` class), and a common chart theme. Its core routines have been checked independently against reference implementations.
 
 ## What's new
 
@@ -28,6 +28,8 @@ Every notebook draws on `func_lib.py`, a shared library for data handling, chron
 - **Live trading desk.** The trained DQN agent runs in your browser at [damionm.io/desk](https://damionm.io/desk). You can replay each options episode, compare episodes side by side, and see every trade.
 - **Refreshed options results.** The GBM options agent was retrained, and the results below reflect the latest clean run, including per-episode results and updated benchmarks.
 - **Refreshed charts.** Every project chart has been redrawn in a consistent graphite theme.
+- **A `GBM` class.** `func_lib.py` now has a small `GBM` class that fits μ and σ, gives a forecast range, simulates paths and values options, built on the same tested pricing functions.
+- **Clearer names.** In the options notebook, `rf` is always the risk-free rate, `log_ret` the log returns and `features` the daily feature table.
 - **Simpler repository.** The HTML slide decks have been retired in favour of the website, and the regression work is consolidated into a single notebook.
 
 ---
@@ -73,7 +75,17 @@ Extends the agent to options on SPY, using VIX as the implied-volatility proxy:
 
 1. **Price model:** geometric Brownian motion, fitted by maximum likelihood, with diagnostics showing where fat tails break it.
 2. **Volatility forecasts:** historical, EWMA, GARCH(1,1), HAR-RV and VIX, each refitted walk-forward and scored on QLIKE.
-3. **Pricing engine:** Monte Carlo with antithetic variates, checked against Black-Scholes, plus the Greeks.
+3. **Pricing engine:** Monte Carlo with antithetic variates, checked against Black-Scholes, plus the Greeks. A `GBM` class wraps the engine for one set of parameters:
+
+   ```python
+   from func_lib import GBM
+   model = GBM.fit(log_returns)               # maximum-likelihood mu and sigma
+   model.forecast(S0=500, T=63/252)           # expected price, median and 90% range
+   paths = model.simulate(500, 63/252, 63, 20_000, seed=42)
+   model.option_value(S=500, K=500, T=21/252, r=0.04, kind='put')
+   ```
+
+   The daily walk-forward loop still calls the vectorised functions directly, since μ and σ change every day.
 4. **Edge signal:** the GBM expected value of an option compared with its market price.
 5. **DQN agent:** six actions (hold, buy call, buy put, sell call, sell put, close), with bid/ask costs, Reg-T-style margin on short options, forced buy-backs and a crash filter.
 
@@ -125,7 +137,7 @@ pip install numpy pandas scipy scikit-learn statsmodels plotly yfinance tensorfl
 ## Repository layout
 
 ```
-func_lib.py                          shared helpers (data, backtests, agent, pricing, charts)
+func_lib.py                          shared helpers (data, backtests, agent, pricing, GBM class, charts)
 regression_models_comparison.ipynb   01 · regression and classification strategies vs benchmark
 time_series.ipynb                    02 · AAPL feature engineering and charts
 rl_trading_agent.ipynb               03 · DQN stock-trading agent

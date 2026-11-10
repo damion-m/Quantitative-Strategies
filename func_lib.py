@@ -9,7 +9,7 @@ Sections
     6. Options pricing, GBM simulation and volatility forecasting (GBM options notebook)
     7. RL options trading agent: buy / sell calls and puts with trade tracking (GBM options notebook)
 
-Heavy optional dependencies (keras, tqdm, yfinance) are imported lazily, so importing
+Heavy optional dependencies (keras, yfinance) are imported lazily, so importing
 func_lib only requires numpy, pandas and plotly.
 """
 import random
@@ -563,6 +563,55 @@ def format_price(n):
     return ('-$' if n < 0 else '$') + f'{abs(n):,.2f}'
 
 
+def progress(iterable, desc='', total=None, min_interval=0.5, width=20):
+    """Iterate with a one-line progress readout that updates in place, then ends as a summary line.
+
+    In Jupyter / VS Code it redraws a single display output (display_id), so the saved notebook keeps
+    one line instead of one per refresh, and needs no widgets. A text bar such as tqdm relies on
+    carriage returns, which only rewrite within one output block, so saved notebooks show hundreds
+    of lines. In a terminal it redraws one line with a carriage return.
+    """
+    import sys
+    import time
+    total = len(iterable) if total is None else total
+    try:
+        from IPython import get_ipython
+        from IPython.display import display
+        in_notebook = getattr(get_ipython(), 'kernel', None) is not None
+    except ImportError:
+        in_notebook = False
+
+    def status(done, elapsed):
+        frac = done / total if total else 1.0
+        rate = done / elapsed if elapsed > 0 else 0.0
+        eta = (total - done) / rate if rate > 0 else 0.0
+        filled = round(width * frac)
+        return (f'{desc}: {frac:4.0%} |{"█" * filled}{" " * (width - filled)}| {done:,}/{total:,} '
+                f'[{elapsed:.0f}s elapsed, ~{eta:.0f}s left, {rate:,.0f} it/s]')
+
+    if in_notebook:
+        handle = display({'text/plain': status(0, 0.0)}, raw=True, display_id=True)
+        def show(text):
+            handle.update({'text/plain': text}, raw=True)
+    else:
+        def show(text):   # pad so a shorter line fully overwrites the previous one
+            print('\r' + text.ljust(len(status(total, 1.0)) + 10), end='', file=sys.stderr, flush=True)
+        show(status(0, 0.0))
+
+    start = last = time.monotonic()
+    done = 0
+    for item in iterable:
+        yield item
+        done += 1
+        now = time.monotonic()
+        if now - last >= min_interval:
+            show(status(done, now - start))
+            last = now
+    show(f'{desc}: {done:,} steps in {time.monotonic() - start:.0f}s')
+    if not in_notebook:
+        print(file=sys.stderr)
+
+
 def build_states(features, window_size=1):
     """Vectorized DQN states for every time step -> float32 array (T, window_size * n_features).
 
@@ -693,12 +742,6 @@ def run_episode(agent, states, prices, train=False, batch_size=32, train_every=1
     Returns a dict with buys, sells, trades (DataFrame), losses, actions, the cumulative P&L path in
     $ per share ('pnl'), the inventory path, and open_positions (lots left before the final close).
     """
-    try:
-        from tqdm import tqdm   # plain-text bar: no ipywidgets, so saved notebooks render anywhere
-    except ImportError:          # tqdm is optional
-        def tqdm(it, **_):
-            return it
-
     inventory = deque()
     if agent is not None:
         agent.inventory = inventory
@@ -727,7 +770,7 @@ def run_episode(agent, states, prices, train=False, batch_size=32, train_every=1
         return profit
 
     state = full_state(0)
-    for t in tqdm(range(last_t), desc=desc, leave=False):
+    for t in progress(range(last_t), desc=desc):
         valid = [0] + ([1] if len(inventory) < max_inventory else []) + ([2] if inventory else [])
         action = policy(t, state, valid) if policy is not None else agent.act(state, valid)
         actions[t] = action
@@ -1348,12 +1391,6 @@ def run_options_episode(market_states, md, cfg, agent=None, policy=None, train=F
     An action that can't be done (book full, not enough free equity, shorts blocked, nothing to close)
     becomes a hold. Reward = daily change in account equity as a percent of starting capital.
     """
-    try:
-        from tqdm import tqdm   # plain-text bar: no ipywidgets, so saved notebooks render anywhere
-    except ImportError:
-        def tqdm(it, **_):
-            return it
-
     S, iv, rf, dates = md['S'], md['iv'], md['rf'], md['dates']
     short_allowed = md.get('short_allowed')
     tenor, mult, cap = cfg['tenor_days'], cfg['contract_mult'], cfg['capital']
@@ -1400,7 +1437,7 @@ def run_options_episode(market_states, md, cfg, agent=None, policy=None, train=F
     equity[0] = cap
     state = np.concatenate([market_states[0], _book_features(book, 0, max_pos, tenor, 0.0, cap)])
 
-    for t in tqdm(range(n - 1), desc=desc, leave=False):
+    for t in progress(range(n - 1), desc=desc):
         action = policy(t, state) if policy is not None else agent.act(state)
         actions[t] = action
 

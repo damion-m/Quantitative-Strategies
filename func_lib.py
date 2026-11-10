@@ -670,7 +670,7 @@ def run_episode(agent, states, prices, train=False, batch_size=32, train_every=1
     $ per share ('pnl'), the inventory path, and open_positions (lots left before the final close).
     """
     try:
-        from tqdm.notebook import tqdm
+        from tqdm import tqdm   # plain-text bar: no ipywidgets, so saved notebooks render anywhere
     except ImportError:          # tqdm is optional
         def tqdm(it, **_):
             return it
@@ -1323,7 +1323,7 @@ def run_options_episode(market_states, md, cfg, agent=None, policy=None, train=F
     becomes a hold. Reward = daily change in account equity as a percent of starting capital.
     """
     try:
-        from tqdm.notebook import tqdm
+        from tqdm import tqdm   # plain-text bar: no ipywidgets, so saved notebooks render anywhere
     except ImportError:
         def tqdm(it, **_):
             return it

@@ -184,6 +184,171 @@ def position_features(inventory, price, max_inventory):
     return np.array([len(inventory) / max_inventory, 1.0, unrealized], dtype=np.float32)
 
 
+class EpisodeResult(dict):
+    """What run_episode returns: a plain dict of the episode's outputs, plus attribute access.
+
+    It is a dict subclass, so everything that worked on the old result dict still works:
+    result['pnl'], result.get('pnl'), 'pnl' in result, iteration, .keys() / .items() / .values(),
+    dict(result), isinstance(result, dict), pickling. On top of that, result.pnl is result['pnl'],
+    and a few convenience methods call the existing report functions.
+
+    Keys from run_episode: buys, sells, trades (DataFrame), losses, actions, pnl, inventory,
+    open_positions. Attribute access is read-only; assign through result['key'] = value.
+    """
+    __slots__ = ()
+
+    def __getattr__(self, name):
+        if name.startswith('_'):
+            raise AttributeError(name)
+        try:
+            return self[name]
+        except KeyError:
+            raise AttributeError(f'{type(self).__name__} has no field {name!r}') from None
+
+    def __dir__(self):
+        return sorted(set(super().__dir__()) | {k for k in self if isinstance(k, str) and k.isidentifier()})
+
+    def summary(self, title=''):
+        """Print the episode summary (print_summary)."""
+        print_summary(self, title)
+
+    def trade_report(self, df):
+        """Closed trades with timestamps and market context from `df` (trade_report)."""
+        return trade_report(df, self)
+
+
+class TradingEnv:
+    """The single-stock trading environment that run_episode steps through, with reset() / step().
+
+    One share is bought per buy action (up to `max_inventory` lots) and lots are sold FIFO.
+    The state at t is the market state states[t] plus position_features(), so the agent knows what
+    it holds. Rewards follow `reward_mode` ('mtm' daily mark-to-market in % of price, net of costs,
+    or 'realized' = max(trade profit, 0) on sells), exactly as described in run_episode.
+
+    Usage
+        env = TradingEnv(states, prices, max_inventory=5, reward_mode='mtm', cost_bps=5)
+        state = env.reset()
+        while not env.done:
+            action = my_policy(state, env.valid_actions())
+            state, reward, done, info = env.step(action)
+        result = env.finish()            # EpisodeResult, same keys as run_episode
+
+    step() does not enforce the mask: it does what it is told, as run_episode always has (a sell
+    with nothing held raises IndexError). Use valid_actions() to choose an allowed action.
+    """
+
+    def __init__(self, states, prices, max_inventory=5, reward_mode='mtm', cost_bps=0.0, verbose=False):
+        self.states, self.prices = states, prices
+        self.max_inventory, self.reward_mode, self.cost_bps = max_inventory, reward_mode, cost_bps
+        self.verbose = verbose
+        self.n = len(states)
+        self.last_t = self.n - 1
+        self.inventory = deque()          # FIFO open lots: (buy_price, buy_index); cleared, never replaced
+        self.t = None
+
+    def reset(self):
+        """Empty book at t = 0; returns the first state."""
+        n = self.n
+        self.inventory.clear()
+        self.buys, self.sells, self.trades = [], [], []
+        self.actions = np.zeros(n, dtype=int)
+        self.pnl = np.zeros(n)          # cumulative realized + unrealized P&L, $ per share, net of costs
+        self.held = np.zeros(n, dtype=int)
+        self.realized = 0.0
+        self.t = 0
+        self.state = self.full_state(0)
+        return self.state
+
+    @property
+    def done(self):
+        """True once the last state has been reached (no more steps)."""
+        return self.t is not None and self.t >= self.last_t
+
+    def full_state(self, t):
+        """Market state at t plus the position features of the current inventory."""
+        return np.concatenate([self.states[t],
+                               position_features(self.inventory, self.prices[t], self.max_inventory)])
+
+    def valid_actions(self):
+        """Action mask: always hold; buy unless the inventory is full; sell only if something is held."""
+        inventory = self.inventory
+        return [0] + ([1] if len(inventory) < self.max_inventory else []) + ([2] if inventory else [])
+
+    def _sell(self, t, reason):
+        prices = self.prices
+        buy_price, buy_t = self.inventory.popleft()
+        profit = prices[t] - buy_price
+        cost = prices[t] * self.cost_bps / 1e4
+        self.realized += profit - cost
+        self.sells.append(t)
+        self.trades.append({'buy_t': buy_t, 'sell_t': t, 'Buy Price': buy_price, 'Sell Price': prices[t],
+                            'Trade Profit': profit, 'Exit Reason': reason})
+        if self.verbose:
+            print(f'Sell: {format_price(prices[t])} | Profit: {format_price(profit)}')
+        return profit
+
+    def step(self, action):
+        """Apply `action` (0 hold, 1 buy, 2 sell oldest) at t, then mark the book to t + 1.
+
+        Returns (next_state, reward, done, info); info has 't' (the step just taken) and
+        'realized_reward' (max(trade profit, 0) of a sell, else 0).
+        """
+        if self.t is None:
+            raise RuntimeError('call reset() before step()')
+        if self.done:
+            raise RuntimeError('the episode is over; call finish() or reset()')
+        t, prices, inventory = self.t, self.prices, self.inventory
+        self.actions[t] = action
+        price = prices[t]
+        realized_reward = 0.0
+
+        if action == 1:                                   # buy 1 share
+            inventory.append((price, t))
+            self.realized -= price * self.cost_bps / 1e4
+            self.buys.append(t)
+            if self.verbose:
+                print(f'Buy:  {format_price(price)}')
+        elif action == 2:                                 # sell the oldest lot
+            realized_reward = max(self._sell(t, 'Agent sell'), 0.0)
+
+        # Mark the book to t+1
+        pnl = self.pnl
+        unrealized_next = sum(prices[t + 1] - p for p, _ in inventory)
+        pnl[t + 1] = self.realized + unrealized_next
+        self.held[t + 1] = len(inventory)
+        if self.reward_mode == 'mtm':
+            reward = 100 * (pnl[t + 1] - pnl[t]) / price
+        else:
+            reward = realized_reward
+
+        next_state = self.full_state(t + 1)
+        done = t == self.last_t - 1
+        self.t, self.state = t + 1, next_state
+        return next_state, reward, done, {'t': t, 'realized_reward': realized_reward}
+
+    def finish(self, losses=None, close_at_end=True):
+        """End the episode and return its EpisodeResult (the same keys and values run_episode returns).
+
+        close_at_end: sell any lots still open on the last day ('End of data'), so every buy shows up
+        in the trade log. `losses` is the list of replay losses to store in the result (default []).
+        Call it once per episode.
+        """
+        inventory, last_t = self.inventory, self.last_t
+        open_positions = len(inventory)
+        if close_at_end:
+            while inventory:
+                self._sell(last_t, 'End of data')
+            self.pnl[last_t] = self.realized
+            self.held[last_t] = 0
+
+        trades = pd.DataFrame(self.trades, columns=['buy_t', 'sell_t', 'Buy Price', 'Sell Price',
+                                                    'Trade Profit', 'Exit Reason'])
+        trades = trades.astype({'buy_t': int, 'sell_t': int, 'Trade Profit': float})   # also when empty
+        return EpisodeResult({'buys': self.buys, 'sells': self.sells, 'trades': trades,
+                              'losses': [] if losses is None else losses, 'actions': self.actions,
+                              'pnl': self.pnl, 'inventory': self.held, 'open_positions': open_positions})
+
+
 def run_episode(agent, states, prices, train=False, batch_size=32, train_every=1, desc='', verbose=False,
                 policy=None, max_inventory=5, reward_mode='mtm', cost_bps=0.0, close_at_end=True):
     """One pass over the data: buy 1 share per buy signal (up to `max_inventory`), sell lots FIFO.
@@ -199,81 +364,27 @@ def run_episode(agent, states, prices, train=False, batch_size=32, train_every=1
     close_at_end: sell any lots still open on the last day ('End of data'), so every buy shows up
                   in the trade log.
 
-    Returns a dict with buys, sells, trades (DataFrame), losses, actions, the cumulative P&L path in
-    $ per share ('pnl'), the inventory path, and open_positions (lots left before the final close).
+    Returns an EpisodeResult (a dict) with buys, sells, trades (DataFrame), losses, actions, the
+    cumulative P&L path in $ per share ('pnl'), the inventory path, and open_positions (lots left
+    before the final close).
+
+    The simulation itself lives in TradingEnv; this function is the training / evaluation loop over it.
     """
-    inventory = deque()
+    env = TradingEnv(states, prices, max_inventory, reward_mode, cost_bps, verbose)
     if agent is not None:
-        agent.inventory = inventory
-    buys, sells, trades, losses = [], [], [], []
-    n = len(states)
-    last_t = n - 1
-    actions = np.zeros(n, dtype=int)
-    pnl = np.zeros(n)                 # cumulative realized + unrealized P&L, $ per share, net of costs
-    held = np.zeros(n, dtype=int)
-    realized = 0.0
-
-    def full_state(t):
-        return np.concatenate([states[t], position_features(inventory, prices[t], max_inventory)])
-
-    def sell(t, reason):
-        nonlocal realized
-        buy_price, buy_t = inventory.popleft()
-        profit = prices[t] - buy_price
-        cost = prices[t] * cost_bps / 1e4
-        realized += profit - cost
-        sells.append(t)
-        trades.append({'buy_t': buy_t, 'sell_t': t, 'Buy Price': buy_price, 'Sell Price': prices[t],
-                       'Trade Profit': profit, 'Exit Reason': reason})
-        if verbose:
-            print(f'Sell: {format_price(prices[t])} | Profit: {format_price(profit)}')
-        return profit
-
-    state = full_state(0)
-    for t in progress(range(last_t), desc=desc):
-        valid = [0] + ([1] if len(inventory) < max_inventory else []) + ([2] if inventory else [])
+        agent.inventory = env.inventory
+    losses = []
+    state = env.reset()
+    for t in progress(range(env.last_t), desc=desc):
+        valid = env.valid_actions()
         action = policy(t, state, valid) if policy is not None else agent.act(state, valid)
-        actions[t] = action
-        price = prices[t]
-        realized_reward = 0.0
-
-        if action == 1:                                   # buy 1 share
-            inventory.append((price, t))
-            realized -= price * cost_bps / 1e4
-            buys.append(t)
-            if verbose:
-                print(f'Buy:  {format_price(price)}')
-        elif action == 2:                                 # sell the oldest lot
-            realized_reward = max(sell(t, 'Agent sell'), 0.0)
-
-        # Mark the book to t+1
-        unrealized_next = sum(prices[t + 1] - p for p, _ in inventory)
-        pnl[t + 1] = realized + unrealized_next
-        held[t + 1] = len(inventory)
-        if reward_mode == 'mtm':
-            reward = 100 * (pnl[t + 1] - pnl[t]) / price
-        else:
-            reward = realized_reward
-
-        next_state = full_state(t + 1)
+        next_state, reward, done, _ = env.step(action)
         if train and agent is not None:
-            agent.remember(state, action, reward, next_state, t == last_t - 1)
+            agent.remember(state, action, reward, next_state, done)
             if len(agent.memory) > batch_size and t % train_every == 0:
                 losses.append(agent.exp_replay(batch_size))
         state = next_state
-
-    open_positions = len(inventory)
-    if close_at_end:
-        while inventory:
-            sell(last_t, 'End of data')
-        pnl[last_t] = realized
-        held[last_t] = 0
-
-    trades = pd.DataFrame(trades, columns=['buy_t', 'sell_t', 'Buy Price', 'Sell Price', 'Trade Profit',
-                                           'Exit Reason'])
-    trades = trades.astype({'buy_t': int, 'sell_t': int, 'Trade Profit': float})   # also when empty
-    return {'buys': buys, 'sells': sells, 'trades': trades, 'losses': losses, 'actions': actions,
-            'pnl': pnl, 'inventory': held, 'open_positions': open_positions}
+    return env.finish(losses, close_at_end)
 
 
 def print_summary(result, title):
@@ -415,3 +526,19 @@ def trade_analysis_figure(trade_tracker, realized_pnl, title='Backtest Trade Ana
     fig.update_xaxes(title_text='Volatility at buy', row=1, col=2)
     fig.update_yaxes(title_text='Trades', row=1, col=2)
     return fig
+
+
+# ---- Generic tabular Q-learning loop (moved here from the clustering section; no notebook calls it) ----
+def train_agent(env, agent, episodes=1000):
+    """Generic tabular Q-learning loop: env.reset()/env.step(); agent.choose_action()/agent.learn()."""
+    for episode in range(episodes):
+        state = tuple(env.reset())
+        done = False
+        while not done:
+            action = agent.choose_action(state)
+            next_state, reward, done, _ = env.step(action)
+            next_state = tuple(next_state)
+            agent.learn(state, action, reward, next_state)
+            state = next_state
+        if (episode + 1) % 100 == 0:
+            print(f'Episode {episode + 1} completed')

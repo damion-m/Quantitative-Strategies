@@ -14,8 +14,11 @@ from .portfolio import performance_stats
 # =============================================================================
 # 2. Cross-sectional data and backtest helpers
 # =============================================================================
-def createHistPrices(start_date='2000-01-01', end_date='2004-05-01', min_obs_per_ticker=100):
-    """Adjusted close prices for current S&P 500 members (Date x Ticker)."""
+def create_hist_prices(start_date='2000-01-01', end_date='2004-05-01', min_obs_per_ticker=100):
+    """Adjusted close prices for current S&P 500 members (Date x Ticker).
+
+    Also available under its original name, createHistPrices.
+    """
     import yfinance as yf
 
     headers = {'User-Agent': 'Mozilla/5.0'}
@@ -31,10 +34,11 @@ def createHistPrices(start_date='2000-01-01', end_date='2004-05-01', min_obs_per
     return prices.loc[:, prices.count() >= min_obs_per_ticker]
 
 
-def computingReturns(historical_prices, list_of_momentums, forecast_horizon=1):
+def compute_returns(historical_prices, list_of_momentums, forecast_horizon=1):
     """Long-format (Ticker, Date) frame with the forward return target and momentum features.
 
     Columns: F_{h}_d_returns (next-h-day return, the target) and {m}_d_returns for each momentum m.
+    Also available under its original name, computingReturns.
     """
     fwd = historical_prices.pct_change(forecast_horizon, fill_method=None).shift(-forecast_horizon)
     columns = {f'F_{forecast_horizon}_d_returns': fwd.unstack()}
@@ -42,6 +46,11 @@ def computingReturns(historical_prices, list_of_momentums, forecast_horizon=1):
         columns[f'{m}_d_returns'] = historical_prices.pct_change(m, fill_method=None).unstack()
     # One concat instead of a chain of outer merges; same rows after dropna
     return pd.concat(columns, axis=1).dropna(how='any')
+
+
+# Original camelCase names, kept so existing notebooks work unchanged (the same function objects)
+createHistPrices = create_hist_prices
+computingReturns = compute_returns
 
 
 def _perf_summary(daily_returns, label):
@@ -244,7 +253,16 @@ def coefficient_bar_figure(coefficients, title='Model Coefficients'):
 def calculate_rsi(returns, window=14):
     """Simple-moving-average RSI of a return / price-change series (NaNs dropped).
 
-    For Wilder's (exponential) RSI, the one used by most charting packages, see `wilder_rsi`.
+    How it differs from `wilder_rsi` (quantlib.timeseries):
+      * input: a series of returns or price changes, not prices (wilder_rsi takes the close and
+        differences it itself);
+      * smoothing: a plain `window`-day mean of gains and losses (Cutler's RSI), where wilder_rsi
+        uses Wilder's exponential smoothing (alpha = 1 / window), the convention of most charting
+        packages;
+      * output: NaNs are dropped, so the index is shorter than the input: the warm-up rows and any
+        window with no losses (where wilder_rsi gives 100) are left out.
+    No notebook uses this function: every published RSI (build_ts_features' 'RSI' column, used by
+    the time-series, RL and options notebooks and the saved feature CSVs) comes from wilder_rsi.
     """
     gain = returns.clip(lower=0)
     loss = -returns.clip(upper=0)

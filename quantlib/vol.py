@@ -121,3 +121,101 @@ def forecast_metrics(forecasts, target):
                       'QLIKE': np.mean(ratio - np.log(ratio) - 1),
                       'MZ R²': mz, 'Obs': int(ok.sum())}
     return pd.DataFrame(rows).T
+
+
+# ---- Forecaster classes: fit() / forecast() around the functions above ----
+class GarchForecaster:
+    """GARCH(1,1) forecaster of the average daily variance over the next `horizon` days.
+
+    A thin wrapper around fit_garch11 and garch_forecast that keeps the fitted parameters:
+        model = GarchForecaster(horizon=21).fit(log_ret[:'2020'])
+        model.params                         # dict(mu, omega, alpha, beta, h0), as fit_garch11 returns
+        model.forecast(log_ret)              # Series, as garch_forecast returns
+        model.walk_forward(log_ret, '2015-01-01')   # same as walk_forward_garch(log_ret, '2015-01-01', 21)
+    """
+    name = 'GARCH'
+
+    def __init__(self, horizon=21):
+        self.horizon = horizon
+        self.params = None
+
+    def fit(self, returns):
+        """Gaussian MLE on daily returns (fit_garch11). Returns self."""
+        self.params = fit_garch11(returns)
+        return self
+
+    def forecast(self, returns, horizon=None):
+        """Average daily variance over t+1..t+horizon for every t, filtered through `returns` (garch_forecast)."""
+        if self.params is None:
+            raise RuntimeError('call fit() before forecast()')
+        return garch_forecast(returns, self.params, self.horizon if horizon is None else horizon)
+
+    def walk_forward(self, returns, first_test_date, refit_freq='YS'):
+        """Out-of-sample forecasts, refitted on all returns before each refit date.
+
+        Gives exactly what walk_forward_garch(returns, first_test_date, self.horizon, refit_freq) gives.
+        Afterwards self.params holds the last fit.
+        """
+        forecasts = pd.Series(np.nan, index=returns.index, name=self.name)
+        clean = returns.fillna(0.0)
+        for start, end in _refit_blocks(returns.index, first_test_date, refit_freq):
+            self.fit(clean.iloc[:start])
+            forecasts.iloc[start:end] = self.forecast(clean).iloc[start:end].to_numpy()
+        return forecasts
+
+
+class HarForecaster:
+    """HAR-RV forecaster (Corsi 2009): OLS of the target on daily, weekly and monthly average realized
+    variance (har_design), keeping the fitted coefficients.
+
+        model = HarForecaster(horizon=21).fit(rv[:'2020'], target[:'2020'])
+        model.coef                           # [intercept, rv_d, rv_w, rv_m]
+        model.forecast(rv)                   # Series of forecasts for every day with a full design row
+        model.walk_forward(rv, target, '2015-01-01')   # same as walk_forward_har(rv, target, '2015-01-01', 21)
+    """
+    name = 'HAR'
+
+    def __init__(self, horizon=21):
+        self.horizon = horizon
+        self.coef = None
+
+    @staticmethod
+    def _ols(X, y):
+        ok = X.notna().all(axis=1) & y.notna()
+        A = np.column_stack([np.ones(ok.sum()), X[ok].to_numpy()])
+        coef, *_ = np.linalg.lstsq(A, y[ok].to_numpy(), rcond=None)
+        return coef
+
+    def fit(self, rv, target):
+        """OLS on every row where the HAR regressors and the target are all known. Returns self.
+
+        It uses all the rows it is given: to stay out of sample, pass only targets whose window
+        (t+1..t+horizon) has ended, as walk_forward does.
+        """
+        self.coef = self._ols(har_design(rv), target)
+        return self
+
+    def forecast(self, rv, floor=None):
+        """coef[0] + har_design(rv) @ coef[1:] for every row (NaN during the 22-day warm-up),
+        clipped below at `floor` when given."""
+        if self.coef is None:
+            raise RuntimeError('call fit() before forecast()')
+        X = har_design(rv)
+        forecasts = pd.Series(self.coef[0] + X.to_numpy() @ self.coef[1:], index=rv.index, name=self.name)
+        return forecasts if floor is None else forecasts.clip(lower=floor)
+
+    def walk_forward(self, rv, target, first_test_date, refit_freq='YS'):
+        """Out-of-sample forecasts, refitted at each `refit_freq` boundary on data known by then.
+
+        Gives exactly what walk_forward_har(rv, target, first_test_date, self.horizon, refit_freq)
+        gives, including the floor at the 1st percentile of rv. Afterwards self.coef holds the last fit.
+        """
+        X = har_design(rv)
+        forecasts = pd.Series(np.nan, index=rv.index, name=self.name)
+        for start, end in _refit_blocks(rv.index, first_test_date, refit_freq):
+            train = slice(0, max(start - self.horizon, 0))
+            self.coef = self._ols(X.iloc[train], target.iloc[train])
+            Xp = X.iloc[start:end]
+            forecasts.iloc[start:end] = self.coef[0] + Xp.to_numpy() @ self.coef[1:]
+        floor = np.nanpercentile(rv, 1)                  # keep variance forecasts positive
+        return forecasts.clip(lower=floor)

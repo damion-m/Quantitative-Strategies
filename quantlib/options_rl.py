@@ -8,7 +8,7 @@ from plotly.subplots import make_subplots
 
 from ._common import TRADING_DAYS
 from .theme import DOWN, NEUTRAL, PALETTE, UP, _rgba, subtitled
-from .rl import format_price, progress
+from .rl import EpisodeResult, format_price, progress
 from .options import bs_greeks, bs_price
 
 
@@ -41,6 +41,204 @@ def _book_features(book, t, max_positions, tenor_days, margin_used, equity):
     return np.array(counts + [time_left, utilization], dtype=np.float32)
 
 
+class OptionsEpisodeResult(EpisodeResult):
+    """What run_options_episode returns: a dict of the episode's outputs, plus attribute access.
+
+    Keys: equity (Series), trades (DataFrame), losses, actions, entries, exits, counts, margin
+    (Series), open_positions. See EpisodeResult for the dict compatibility.
+    """
+    __slots__ = ()
+
+    def summary(self, title=''):
+        """Print the options episode summary (print_options_summary)."""
+        print_options_summary(self, title)
+
+    def trade_statistics(self, groups=('Side', 'Type', 'Position')):
+        """Trade statistics for All trades and per side, type and position (options_trade_statistics)."""
+        return options_trade_statistics(self['trades'], groups)
+
+    def trade_report(self, df=None):
+        """A copy of the trade log. Options trades already carry their dates and entry context,
+        so `df` is not needed and is ignored."""
+        return self['trades'].copy()
+
+
+class OptionsEnv:
+    """The options-book environment that run_options_episode steps through, with reset() / step().
+
+    market_states, md and cfg are exactly as in run_options_episode, which documents the trading
+    rules: 1-contract European calls / puts struck at S*(1 +/- moneyness), longs pay the ask and
+    shorts collect the bid, shorts post Reg-T style margin and are force-closed ('Margin call') when
+    equity falls below margin used, positions are marked at BS(iv) and settle at intrinsic on expiry.
+    An action that can't be done becomes a hold. Reward = daily change in account equity as a percent
+    of starting capital.
+
+    State held here: the open book (one dict per position, in opening order), cash, the equity and
+    margin paths, per-position-type counts, entries / exits and the trade log.
+
+    Usage
+        env = OptionsEnv(market_states, md, cfg)
+        state = env.reset()
+        while not env.done:
+            state, reward, done, info = env.step(my_policy(env.t, state))
+        result = env.finish()            # OptionsEpisodeResult, same keys as run_options_episode
+    """
+
+    def __init__(self, market_states, md, cfg, verbose=False):
+        self.market_states, self.md, self.cfg = market_states, md, cfg
+        self.S, self.iv, self.rf, self.dates = md['S'], md['iv'], md['rf'], md['dates']
+        self.short_allowed = md.get('short_allowed')
+        self.tenor, self.mult, self.cap = cfg['tenor_days'], cfg['contract_mult'], cfg['capital']
+        self.max_pos = cfg['max_positions']
+        self.max_short = cfg.get('max_short_positions', self.max_pos)
+        self.cost, self.m = cfg['cost_vol'], cfg.get('moneyness', 0.0)
+        self.m_pct, self.m_min = cfg.get('short_margin_pct', 0.20), cfg.get('min_margin_pct', 0.10)
+        self.verbose = verbose
+        self.n = len(self.S)
+        self.t = None
+
+    def reset(self):
+        """Empty book and full capital at t = 0; returns the first state."""
+        n, cap = self.n, self.cap
+        self.book, self.trades, self.exits = [], [], []
+        self.actions = np.zeros(n, dtype=int)
+        self.entries = {name: [] for name in POSITION_ORDER}
+        self.counts = {name: np.zeros(n, dtype=int) for name in POSITION_ORDER}
+        self.cash = float(cap)
+        self.equity, self.margin = np.full(n, np.nan), np.zeros(n)
+        self.equity[0] = cap
+        self.t = 0
+        self.state = np.concatenate([self.market_states[0],
+                                     _book_features(self.book, 0, self.max_pos, self.tenor, 0.0, cap)])
+        return self.state
+
+    @property
+    def done(self):
+        """True once the last day has been reached (no more steps)."""
+        return self.t is not None and self.t >= self.n - 1
+
+    def value(self, p, t, vol_shift=0.0):
+        """Value of position `p` at t: BS(iv + vol_shift) before expiry, intrinsic value at expiry."""
+        S, iv, rf = self.S, self.iv, self.rf
+        tau = max(p['expiry_t'] - t, 0) / TRADING_DAYS
+        kind = p['Type'].lower()
+        if tau == 0:
+            return max(S[t] - p['Strike'], 0) if kind == 'call' else max(p['Strike'] - S[t], 0)
+        return float(bs_price(S[t], p['Strike'], tau, rf[t], max(iv[t] + vol_shift, 0.01), 0.0, kind))
+
+    def margin_used(self, t):
+        """Total margin required at t by the short positions in the book."""
+        S, mult, m_pct, m_min = self.S, self.mult, self.m_pct, self.m_min
+        return sum(short_margin_requirement(p['Type'].lower(), S[t], p['Strike'], self.value(p, t), mult, m_pct, m_min)
+                   for p in self.book if p['sign'] < 0)
+
+    def mark(self, t):
+        """Account equity at t: cash plus the signed value of every open position."""
+        return self.cash + sum(p['sign'] * self.value(p, t) * self.mult for p in self.book)
+
+    def _close(self, p, t, reason, use_spread=True):
+        # Longs sell at the bid, shorts buy back at the ask; expiry and end-of-data use intrinsic / mid
+        S, dates, mult = self.S, self.dates, self.mult
+        exit_value = self.value(p, t, -p['sign'] * self.cost if use_spread else 0.0)
+        sign = p['sign']
+        pnl = sign * (exit_value - p['Entry Premium']) * mult
+        ret = 100 * sign * (exit_value - p['Entry Premium']) / p['Entry Premium']
+        self.trades.append({**{k: v for k, v in p.items() if k not in ('entry_t', 'expiry_t', 'sign')},
+                            'Exit Date': dates[t], 'Exit Reason': reason, 'Exit Spot': S[t], 'Exit Value': exit_value,
+                            'P&L ($)': pnl, 'Return %': ret, 'Holding Days': t - p['entry_t']})
+        self.exits.append(t)
+        if self.verbose:
+            print(f"{dates[t]:%Y-%m-%d} close {p['Position']} K={p['Strike']:.0f} ({reason}) P&L {format_price(pnl)}")
+        return sign * exit_value * mult           # cash flow: +proceeds for longs, -buy-back cost for shorts
+
+    def step(self, action):
+        """Apply `action` (OPTION_ACTIONS) at t, then move to t + 1: expiries, mark-to-market, margin calls.
+
+        Returns (next_state, reward, done, info); info has 't', the step just taken.
+        """
+        if self.t is None:
+            raise RuntimeError('call reset() before step()')
+        if self.done:
+            raise RuntimeError('the episode is over; call finish() or reset()')
+        t, n, book = self.t, self.n, self.book
+        S, iv, rf, dates, md = self.S, self.iv, self.rf, self.dates, self.md
+        tenor, mult, cost, m = self.tenor, self.mult, self.cost, self.m
+        self.actions[t] = action
+
+        if action in _OPEN_ACTIONS and len(book) < self.max_pos:
+            kind, sign = _OPEN_ACTIONS[action]
+            strike = S[t] * (1 + m) if kind == 'call' else S[t] * (1 - m)
+            T = tenor / TRADING_DAYS
+            premium = float(bs_price(S[t], strike, T, rf[t], max(iv[t] + sign * cost, 0.01), 0.0, kind))
+            free_equity = self.mark(t) - self.margin_used(t)
+            if sign > 0:
+                ok = free_equity >= premium * mult
+            else:
+                n_short = sum(p['sign'] < 0 for p in book)
+                allowed = True if self.short_allowed is None else bool(self.short_allowed[t])
+                new_margin = short_margin_requirement(kind, S[t], strike, premium, mult, self.m_pct, self.m_min)
+                ok = allowed and n_short < self.max_short and free_equity >= new_margin
+            if ok:
+                greeks = bs_greeks(S[t], strike, T, rf[t], iv[t], 0.0, kind)
+                side = 'Long' if sign > 0 else 'Short'
+                p = {'Position': f'{side} {kind.title()}', 'Type': kind.title(), 'Side': side,
+                     'Entry Date': dates[t], 'Expiry Date': dates[min(t + tenor, n - 1)], 'Strike': strike,
+                     'Entry Spot': S[t], 'Entry IV': iv[t], 'Forecast Vol': md['sigma_f'][t],
+                     'GBM Edge %': 100 * md[f'{kind}_edge'][t], 'Entry Premium': premium,
+                     # position Greeks (signed: a short call has negative delta)
+                     'Delta': sign * float(greeks['delta']), 'Gamma': sign * float(greeks['gamma']),
+                     'Vega': sign * float(greeks['vega']), 'Theta': sign * float(greeks['theta']),
+                     'sign': sign, 'entry_t': t, 'expiry_t': t + tenor}
+                book.append(p)
+                self.cash -= sign * premium * mult      # pay for longs, collect for shorts
+                self.entries[p['Position']].append(t)
+                if self.verbose:
+                    print(f"{dates[t]:%Y-%m-%d} {side.lower()} {kind} K={strike:.0f} @ {format_price(premium)}")
+        elif action == 5 and book:
+            self.cash += self._close(book.pop(0), t, 'Agent close')
+
+        # ---- move to t+1: expiries, mark-to-market, margin calls ----
+        t1 = t + 1
+        for p in [p for p in book if p['expiry_t'] <= t1]:
+            book.remove(p)
+            self.cash += self._close(p, t1, 'Expired', use_spread=False)
+        while any(p['sign'] < 0 for p in book) and self.mark(t1) < self.margin_used(t1):
+            oldest_short = next(p for p in book if p['sign'] < 0)
+            book.remove(oldest_short)
+            self.cash += self._close(oldest_short, t1, 'Margin call')
+
+        equity, margin = self.equity, self.margin
+        equity[t1], margin[t1] = self.mark(t1), self.margin_used(t1)
+        for name in POSITION_ORDER:
+            self.counts[name][t1] = sum(p['Position'] == name for p in book)
+
+        reward = 100 * (equity[t1] - equity[t]) / self.cap
+        next_state = np.concatenate([self.market_states[t1],
+                                     _book_features(book, t1, self.max_pos, tenor, margin[t1], equity[t1])])
+        done = t1 == n - 1
+        self.t, self.state = t1, next_state
+        return next_state, reward, done, {'t': t}
+
+    def finish(self, losses=None):
+        """End the episode: close what is left at the last mark (mid, 'End of data') and return the
+        OptionsEpisodeResult (the same keys and values run_options_episode returns).
+
+        `losses` is the list of replay losses to store in the result (default []). Call it once per
+        episode. As before, the end-of-data closes are logged as trades but not added to cash.
+        """
+        n, book, dates = self.n, self.book, self.dates
+        open_positions = len(book)
+        for p in list(book):                                     # close what is left at the last mark (mid)
+            book.remove(p)
+            self._close(p, n - 1, 'End of data', use_spread=False)
+
+        return OptionsEpisodeResult({
+            'equity': pd.Series(self.equity, index=dates, name='Equity'), 'trades': pd.DataFrame(self.trades),
+            'losses': [] if losses is None else losses, 'actions': self.actions, 'entries': self.entries,
+            'exits': self.exits, 'counts': {k: pd.Series(v, index=dates) for k, v in self.counts.items()},
+            'margin': pd.Series(self.margin, index=dates, name='Margin used'), 'open_positions': open_positions})
+
+
 def run_options_episode(market_states, md, cfg, agent=None, policy=None, train=False,
                         batch_size=32, train_every=1, desc='', verbose=False):
     """Simulate one pass of an options book driven by a DQN `agent` or a `policy(t, state)` callable.
@@ -59,121 +257,22 @@ def run_options_episode(market_states, md, cfg, agent=None, policy=None, train=F
       * Positions are marked at BS(iv) and settle at intrinsic value on expiry.
     An action that can't be done (book full, not enough free equity, shorts blocked, nothing to close)
     becomes a hold. Reward = daily change in account equity as a percent of starting capital.
+
+    Returns an OptionsEpisodeResult (a dict). The simulation itself lives in OptionsEnv; this function
+    is the training / evaluation loop over it.
     """
-    S, iv, rf, dates = md['S'], md['iv'], md['rf'], md['dates']
-    short_allowed = md.get('short_allowed')
-    tenor, mult, cap = cfg['tenor_days'], cfg['contract_mult'], cfg['capital']
-    max_pos = cfg['max_positions']
-    max_short = cfg.get('max_short_positions', max_pos)
-    cost, m = cfg['cost_vol'], cfg.get('moneyness', 0.0)
-    m_pct, m_min = cfg.get('short_margin_pct', 0.20), cfg.get('min_margin_pct', 0.10)
-    n = len(S)
-
-    def value(p, t, vol_shift=0.0):
-        tau = max(p['expiry_t'] - t, 0) / TRADING_DAYS
-        kind = p['Type'].lower()
-        if tau == 0:
-            return max(S[t] - p['Strike'], 0) if kind == 'call' else max(p['Strike'] - S[t], 0)
-        return float(bs_price(S[t], p['Strike'], tau, rf[t], max(iv[t] + vol_shift, 0.01), 0.0, kind))
-
-    def margin_used(t):
-        return sum(short_margin_requirement(p['Type'].lower(), S[t], p['Strike'], value(p, t), mult, m_pct, m_min)
-                   for p in book if p['sign'] < 0)
-
-    def mark(t):
-        return cash + sum(p['sign'] * value(p, t) * mult for p in book)
-
-    def close(p, t, reason, use_spread=True):
-        # Longs sell at the bid, shorts buy back at the ask; expiry and end-of-data use intrinsic / mid
-        exit_value = value(p, t, -p['sign'] * cost if use_spread else 0.0)
-        sign = p['sign']
-        pnl = sign * (exit_value - p['Entry Premium']) * mult
-        ret = 100 * sign * (exit_value - p['Entry Premium']) / p['Entry Premium']
-        trades.append({**{k: v for k, v in p.items() if k not in ('entry_t', 'expiry_t', 'sign')},
-                       'Exit Date': dates[t], 'Exit Reason': reason, 'Exit Spot': S[t], 'Exit Value': exit_value,
-                       'P&L ($)': pnl, 'Return %': ret, 'Holding Days': t - p['entry_t']})
-        exits.append(t)
-        if verbose:
-            print(f"{dates[t]:%Y-%m-%d} close {p['Position']} K={p['Strike']:.0f} ({reason}) P&L {format_price(pnl)}")
-        return sign * exit_value * mult           # cash flow: +proceeds for longs, -buy-back cost for shorts
-
-    book, trades, losses, exits = [], [], [], []
-    actions = np.zeros(n, dtype=int)
-    entries = {name: [] for name in POSITION_ORDER}
-    counts = {name: np.zeros(n, dtype=int) for name in POSITION_ORDER}
-    cash = float(cap)
-    equity, margin = np.full(n, np.nan), np.zeros(n)
-    equity[0] = cap
-    state = np.concatenate([market_states[0], _book_features(book, 0, max_pos, tenor, 0.0, cap)])
-
-    for t in progress(range(n - 1), desc=desc):
+    env = OptionsEnv(market_states, md, cfg, verbose=verbose)
+    losses = []
+    state = env.reset()
+    for t in progress(range(env.n - 1), desc=desc):
         action = policy(t, state) if policy is not None else agent.act(state)
-        actions[t] = action
-
-        if action in _OPEN_ACTIONS and len(book) < max_pos:
-            kind, sign = _OPEN_ACTIONS[action]
-            strike = S[t] * (1 + m) if kind == 'call' else S[t] * (1 - m)
-            T = tenor / TRADING_DAYS
-            premium = float(bs_price(S[t], strike, T, rf[t], max(iv[t] + sign * cost, 0.01), 0.0, kind))
-            free_equity = mark(t) - margin_used(t)
-            if sign > 0:
-                ok = free_equity >= premium * mult
-            else:
-                n_short = sum(p['sign'] < 0 for p in book)
-                allowed = True if short_allowed is None else bool(short_allowed[t])
-                new_margin = short_margin_requirement(kind, S[t], strike, premium, mult, m_pct, m_min)
-                ok = allowed and n_short < max_short and free_equity >= new_margin
-            if ok:
-                greeks = bs_greeks(S[t], strike, T, rf[t], iv[t], 0.0, kind)
-                side = 'Long' if sign > 0 else 'Short'
-                p = {'Position': f'{side} {kind.title()}', 'Type': kind.title(), 'Side': side,
-                     'Entry Date': dates[t], 'Expiry Date': dates[min(t + tenor, n - 1)], 'Strike': strike,
-                     'Entry Spot': S[t], 'Entry IV': iv[t], 'Forecast Vol': md['sigma_f'][t],
-                     'GBM Edge %': 100 * md[f'{kind}_edge'][t], 'Entry Premium': premium,
-                     # position Greeks (signed: a short call has negative delta)
-                     'Delta': sign * float(greeks['delta']), 'Gamma': sign * float(greeks['gamma']),
-                     'Vega': sign * float(greeks['vega']), 'Theta': sign * float(greeks['theta']),
-                     'sign': sign, 'entry_t': t, 'expiry_t': t + tenor}
-                book.append(p)
-                cash -= sign * premium * mult      # pay for longs, collect for shorts
-                entries[p['Position']].append(t)
-                if verbose:
-                    print(f"{dates[t]:%Y-%m-%d} {side.lower()} {kind} K={strike:.0f} @ {format_price(premium)}")
-        elif action == 5 and book:
-            cash += close(book.pop(0), t, 'Agent close')
-
-        # ---- move to t+1: expiries, mark-to-market, margin calls ----
-        t1 = t + 1
-        for p in [p for p in book if p['expiry_t'] <= t1]:
-            book.remove(p)
-            cash += close(p, t1, 'Expired', use_spread=False)
-        while any(p['sign'] < 0 for p in book) and mark(t1) < margin_used(t1):
-            oldest_short = next(p for p in book if p['sign'] < 0)
-            book.remove(oldest_short)
-            cash += close(oldest_short, t1, 'Margin call')
-
-        equity[t1], margin[t1] = mark(t1), margin_used(t1)
-        for name in POSITION_ORDER:
-            counts[name][t1] = sum(p['Position'] == name for p in book)
-
-        reward = 100 * (equity[t1] - equity[t]) / cap
-        next_state = np.concatenate([market_states[t1],
-                                     _book_features(book, t1, max_pos, tenor, margin[t1], equity[t1])])
+        next_state, reward, done, _ = env.step(action)
         if train and agent is not None:
-            agent.remember(state, action, reward, next_state, t1 == n - 1)
+            agent.remember(state, action, reward, next_state, done)
             if len(agent.memory) > batch_size and t % train_every == 0:
                 losses.append(agent.exp_replay(batch_size))
         state = next_state
-
-    open_positions = len(book)
-    for p in list(book):                                     # close what is left at the last mark (mid)
-        book.remove(p)
-        close(p, n - 1, 'End of data', use_spread=False)
-
-    return {'equity': pd.Series(equity, index=dates, name='Equity'), 'trades': pd.DataFrame(trades),
-            'losses': losses, 'actions': actions, 'entries': entries, 'exits': exits,
-            'counts': {k: pd.Series(v, index=dates) for k, v in counts.items()},
-            'margin': pd.Series(margin, index=dates, name='Margin used'), 'open_positions': open_positions}
+    return env.finish(losses)
 
 
 def options_trade_statistics(trades, groups=('Side', 'Type', 'Position')):

@@ -19,6 +19,16 @@ Layout
     quantlib/options_rl.py     7. RL options trading agent: buy / sell calls and puts with trade
                                   tracking (GBM options notebook)
 
+Classes (added in step 2 of the refactor; every function above still works and returns the same
+values as before)
+    TradingEnv, EpisodeResult             quantlib/rl.py: reset() / step() environment behind run_episode,
+                                          and its dict-compatible result
+    OptionsEnv, OptionsEpisodeResult      quantlib/options_rl.py: the same for run_options_episode
+    GarchForecaster, HarForecaster        quantlib/vol.py: fit() / forecast() / walk_forward()
+    OptionContract                        quantlib/options.py: one contract's price, Greeks, implied vol
+create_hist_prices and compute_returns are the snake_case names of createHistPrices and
+computingReturns (the old names still work).
+
 Importing func_lib still applies the dark Plotly theme, as before.
 
 Heavy optional dependencies (keras, yfinance) are imported lazily, so importing
@@ -51,6 +61,7 @@ from quantlib.cross_section import (  # noqa: F401
     _display_name, strategy_comparison_figure, strategy_stats_table,
     coefficient_comparison_figure, chronological_split, scale_features, date_based_cv_splits,
     build_pred_frame, coefficient_bar_figure, calculate_rsi,
+    create_hist_prices, compute_returns,
 )
 from quantlib.timeseries import (  # noqa: F401
     download_ohlcv, wilder_rsi, build_ts_features, line_figure, candlestick_volume_figure,
@@ -64,14 +75,17 @@ from quantlib.rl import (  # noqa: F401
     N_POSITION_FEATURES, position_features, run_episode, print_summary,
     policy_comparison_figure, policy_stats_table, plot_behavior, plot_losses, trade_report,
     trade_statistics, print_trade_statistics, trade_analysis_figure,
+    EpisodeResult, TradingEnv,
 )
 from quantlib.options import (  # noqa: F401
     download_close, _as_float_arrays, _d1_d2, bs_price, bs_greeks, implied_vol, gbm_paths,
     mc_option_price, gbm_expected_value, GBM,
+    OptionContract,
 )
 from quantlib.vol import (  # noqa: F401
     daily_variance_proxy, forward_realized_variance, _garch_h_next, fit_garch11, garch_forecast,
     har_design, _refit_blocks, walk_forward_har, walk_forward_garch, forecast_metrics,
+    GarchForecaster, HarForecaster,
 )
 from quantlib.portfolio import (  # noqa: F401
     performance_stats, stats_table_figure, inverse_vol_weights, backtest_weights,
@@ -81,4 +95,5 @@ from quantlib.options_rl import (  # noqa: F401
     OPTION_ACTIONS, _OPEN_ACTIONS, POSITION_ORDER, POSITION_STYLE, N_BOOK_FEATURES,
     short_margin_requirement, _book_features, run_options_episode, options_trade_statistics,
     print_options_summary, plot_options_behavior, options_trade_analysis_figure,
+    OptionsEpisodeResult, OptionsEnv,
 )

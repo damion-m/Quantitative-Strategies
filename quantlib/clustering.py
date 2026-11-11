@@ -1,10 +1,14 @@
-"""Section 4 of the original func_lib: clustering helpers (and the generic train_agent loop that sat there).
+"""Section 4 of the original func_lib: clustering helpers.
+
+The generic tabular train_agent loop that used to sit here now lives in quantlib.rl; it is
+re-imported below so quantlib.clustering.train_agent keeps working.
 """
 
 import numpy as np
 from plotly.subplots import make_subplots
 
 from .theme import DOWN, NEUTRAL, PALETTE
+from .rl import train_agent  # noqa: F401  moved to rl.py; kept importable from here
 
 
 # =============================================================================
@@ -59,18 +63,3 @@ def plot_optimal_cluster_point(sse, k_range):
     fig.update_yaxes(title_text='Normalized SSE', row=1, col=2)
     fig.update_layout(height=460, hovermode='closest')
     fig.show()
-
-
-def train_agent(env, agent, episodes=1000):
-    """Generic tabular Q-learning loop: env.reset()/env.step(); agent.choose_action()/agent.learn()."""
-    for episode in range(episodes):
-        state = tuple(env.reset())
-        done = False
-        while not done:
-            action = agent.choose_action(state)
-            next_state, reward, done, _ = env.step(action)
-            next_state = tuple(next_state)
-            agent.learn(state, action, reward, next_state)
-            state = next_state
-        if (episode + 1) % 100 == 0:
-            print(f'Episode {episode + 1} completed')

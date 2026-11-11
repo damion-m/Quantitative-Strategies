@@ -26,7 +26,15 @@ def download_ohlcv(ticker, start, end):
 
 
 def wilder_rsi(close, window=14):
-    """Wilder RSI, numerically identical to ta.momentum.RSIIndicator(close, window).rsi()."""
+    """Wilder RSI, numerically identical to ta.momentum.RSIIndicator(close, window).rsi().
+
+    This is the RSI behind every published result: build_ts_features' 'RSI' column (time-series,
+    RL and options notebooks, AAPL_trading_features.csv) is computed with it.
+    How it differs from `calculate_rsi` (quantlib.cross_section): it takes prices (the close) rather
+    than returns, smooths gains and losses with Wilder's exponential average (alpha = 1 / window)
+    rather than a simple moving average, keeps the input's index (NaN during the warm-up), and gives
+    100 when there are no losses.
+    """
     diff = close.diff()
     up = diff.where(diff > 0, 0.0)
     down = -diff.where(diff < 0, 0.0)

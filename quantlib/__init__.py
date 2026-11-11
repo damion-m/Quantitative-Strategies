@@ -10,11 +10,11 @@ Modules
     cross_section  cross-sectional data and backtest helpers
     timeseries     time-series features and charts
     clustering     clustering helpers
-    rl             DQN trading agent
-    options        Black-Scholes, Greeks, implied vol, GBM paths, Monte Carlo, the GBM class
-    vol            variance proxy, GARCH(1,1), HAR-RV, forecast metrics
+    rl             DQN trading agent, TradingEnv and EpisodeResult
+    options        Black-Scholes, Greeks, implied vol, GBM paths, Monte Carlo, the GBM class, OptionContract
+    vol            variance proxy, GARCH(1,1), HAR-RV, forecast metrics, GarchForecaster, HarForecaster
     portfolio      performance statistics, stats table figure, risk parity, portfolio backtests
-    options_rl     RL options trading environment and reporting
+    options_rl     RL options trading environment (OptionsEnv, OptionsEpisodeResult) and reporting
 
 Importing the package applies the dark Plotly theme, as importing func_lib always has.
 """

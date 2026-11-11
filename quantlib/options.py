@@ -175,3 +175,49 @@ class GBM:
     def option_value(self, S, K, T, r, kind='call'):
         """Real-world forecast value of a European option, discounted at r. See gbm_expected_value."""
         return gbm_expected_value(S, K, T, r, self.mu, self.sigma, kind)
+
+
+@dataclass
+class OptionContract:
+    """One European option: kind ('call', 'put' or 'straddle'), strike and time to expiry in years.
+
+    A readable handle on the vectorized functions above for a single contract; the methods call
+    bs_price, bs_greeks and implied_vol unchanged, so S, r, sigma may also be arrays:
+        c = OptionContract('put', strike=500, T=21/252)       # or OptionContract.from_days('put', 500, 21)
+        c.price(S=505, r=0.04, sigma=0.18)
+        c.greeks(S=505, r=0.04, sigma=0.18)['delta']
+        c.implied_vol(price=7.5, S=505, r=0.04)
+    """
+    kind: str          # 'call', 'put' or 'straddle'
+    strike: float      # K
+    T: float           # time to expiry in years
+
+    def __post_init__(self):
+        if self.kind not in ('call', 'put', 'straddle'):
+            raise ValueError(f"kind must be 'call', 'put' or 'straddle', got {self.kind!r}")
+
+    @classmethod
+    def from_days(cls, kind, strike, tenor_days, periods_per_year=TRADING_DAYS):
+        """Contract expiring in `tenor_days` trading days (T = tenor_days / periods_per_year)."""
+        return cls(kind=kind, strike=strike, T=tenor_days / periods_per_year)
+
+    def price(self, S, r, sigma, q=0.0):
+        """Black-Scholes-Merton price (bs_price)."""
+        return bs_price(S, self.strike, self.T, r, sigma, q, self.kind)
+
+    def greeks(self, S, r, sigma, q=0.0):
+        """Black-Scholes Greeks (bs_greeks): delta, gamma, vega, theta, rho, in its units."""
+        return bs_greeks(S, self.strike, self.T, r, sigma, q, self.kind)
+
+    def implied_vol(self, price, S, r, q=0.0, lo=1e-4, hi=5.0):
+        """Implied volatility of a market `price` (implied_vol, scalar). NaN if no solution in [lo, hi]."""
+        return implied_vol(price, S, self.strike, self.T, r, q, self.kind, lo, hi)
+
+    def payoff(self, S_T):
+        """Payoff at expiry for terminal spot S_T (vectorized)."""
+        S_T = np.asarray(S_T, dtype=float)
+        if self.kind == 'call':
+            return np.maximum(S_T - self.strike, 0)
+        if self.kind == 'put':
+            return np.maximum(self.strike - S_T, 0)
+        return np.abs(S_T - self.strike)

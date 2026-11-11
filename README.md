@@ -139,6 +139,7 @@ pip install numpy pandas scipy scikit-learn statsmodels plotly yfinance tensorfl
 ```
 func_lib.py                          shared helpers (data, backtests, agent, pricing, GBM class, charts)
 quantlib/                            the code behind func_lib.py, one module per section (see below)
+tests/                               unit tests for the quantlib classes
 regression_models_comparison.ipynb   01 · regression and classification strategies vs benchmark
 time_series.ipynb                    02 · AAPL feature engineering and charts
 rl_trading_agent.ipynb               03 · DQN stock-trading agent
@@ -157,13 +158,22 @@ quantlib/theme.py          Plotly dark theme and small chart helpers
 quantlib/cross_section.py  cross-sectional data, splits, CV folds and backtest helpers
 quantlib/timeseries.py     time-series features (RSI, Bollinger Bands, ...) and charts
 quantlib/clustering.py     clustering helpers
-quantlib/rl.py             the DQN trading agent and its episode runner
-quantlib/options.py        Black-Scholes, Greeks, implied vol, GBM paths, Monte Carlo, the GBM class
-quantlib/vol.py            variance proxy, GARCH(1,1), HAR-RV, forecast metrics
+quantlib/rl.py             the DQN trading agent, TradingEnv, EpisodeResult and the episode runner
+quantlib/options.py        Black-Scholes, Greeks, implied vol, GBM paths, Monte Carlo, the GBM class, OptionContract
+quantlib/vol.py            variance proxy, GARCH(1,1), HAR-RV, forecast metrics, GarchForecaster, HarForecaster
 quantlib/portfolio.py      performance statistics, stats tables, risk parity and portfolio backtests
-quantlib/options_rl.py     the options RL environment and its reports
+quantlib/options_rl.py     the options RL environment (OptionsEnv) and its reports
 quantlib/_common.py        shared constants (TRADING_DAYS)
 ```
+
+A few classes hold the parts that carry state. They sit alongside the functions, which still work and return exactly the same values as before:
+
+- `TradingEnv` and `OptionsEnv`: the stock and options trading environments, with `reset()` and `step(action)`. `run_episode` and `run_options_episode` now loop over them.
+- `EpisodeResult` (and `OptionsEpisodeResult`): what those two functions return. It is still a dict, so `result['pnl']` works as before, and it also allows `result.pnl` and `result.summary()`.
+- `GarchForecaster` and `HarForecaster`: `fit()`, `forecast()` and `walk_forward()` around the GARCH(1,1) and HAR-RV functions.
+- `OptionContract`: one option's strike, expiry and kind, with `.price()`, `.greeks()` and `.implied_vol()`.
+
+`create_hist_prices` and `compute_returns` are the snake_case names of `createHistPrices` and `computingReturns`, which still work. The tests in `tests/` check all of this: `python -m unittest discover -s tests`.
 
 The root-level `cross_section.py` used by the revised notebooks is a separate module from `quantlib/cross_section.py`.
 

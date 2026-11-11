@@ -128,7 +128,7 @@ I'm currently building a walk-forward research environment for detecting market 
 pip install numpy pandas scipy scikit-learn statsmodels plotly yfinance tensorflow keras nbformat
 ```
 
-1. Keep `func_lib.py` in the same folder as the notebooks, or in the parent folder.
+1. Keep `func_lib.py` and the `quantlib/` folder beside it in the same folder as the notebooks, or in the parent folder.
 2. Run `time_series.ipynb` before `rl_trading_agent.ipynb`; it writes the agent's input CSV.
 3. The other notebooks download their own data with `yfinance` and need internet access.
 4. Each notebook's settings are in its **Configuration** cell, and every code cell opens with a short explanation of what it does.
@@ -138,6 +138,7 @@ pip install numpy pandas scipy scikit-learn statsmodels plotly yfinance tensorfl
 
 ```
 func_lib.py                          shared helpers (data, backtests, agent, pricing, GBM class, charts)
+quantlib/                            the code behind func_lib.py, one module per section (see below)
 regression_models_comparison.ipynb   01 · regression and classification strategies vs benchmark
 time_series.ipynb                    02 · AAPL feature engineering and charts
 rl_trading_agent.ipynb               03 · DQN stock-trading agent
@@ -146,6 +147,25 @@ risk_parity_backtest.ipynb           +  · inverse-volatility risk parity
 AAPL_trading_features.csv            agent input produced by time_series.ipynb
 gbm-options-rl-agent-design.md       design notes for the GBM options RL agent
 ```
+
+### The shared library
+
+The code that used to sit in the single file `func_lib.py` now lives in the `quantlib/` package, split by that file's sections. `func_lib.py` re-exports every name, so `import func_lib` and `from func_lib import ...` work exactly as before, and importing it still applies the dark chart theme.
+
+```
+quantlib/theme.py          Plotly dark theme and small chart helpers
+quantlib/cross_section.py  cross-sectional data, splits, CV folds and backtest helpers
+quantlib/timeseries.py     time-series features (RSI, Bollinger Bands, ...) and charts
+quantlib/clustering.py     clustering helpers
+quantlib/rl.py             the DQN trading agent and its episode runner
+quantlib/options.py        Black-Scholes, Greeks, implied vol, GBM paths, Monte Carlo, the GBM class
+quantlib/vol.py            variance proxy, GARCH(1,1), HAR-RV, forecast metrics
+quantlib/portfolio.py      performance statistics, stats tables, risk parity and portfolio backtests
+quantlib/options_rl.py     the options RL environment and its reports
+quantlib/_common.py        shared constants (TRADING_DAYS)
+```
+
+The root-level `cross_section.py` used by the revised notebooks is a separate module from `quantlib/cross_section.py`.
 
 ## Versions
 

@@ -147,6 +147,21 @@ AAPL_trading_features.csv            agent input produced by time_series.ipynb
 gbm-options-rl-agent-design.md       design notes for the GBM options RL agent
 ```
 
+## Versions
+
+Projects are updated as my knowledge improves, and nothing is overwritten. Version 1 of every project is the notebook as first published (git tag `v1`); each later version is a new, dated notebook beside it. The full history is in [VERSIONS.md](VERSIONS.md).
+
+```
+regression_models_revisited.ipynb        01 · version 2: index membership by date, costs, sector-relative test
+time_series_features_revisited.ipynb     02 · versions 2 and 3: do the features predict anything?
+price_range_forecast.ipynb               02 · version 4: a forecast of price as a range, sizing by forecast risk
+volatility_forecasts_revisited.ipynb     04 · version 2: the five volatility forecasts, tested formally
+cross_section.py  vol_eval.py  ts_features.py  range_forecast.py     helper modules for the revisions
+data_cache/                              frozen data snapshots, pass marks fixed before each test, result summaries
+```
+
+The revised notebooks read frozen snapshots from `data_cache/`, so they reproduce exactly. Stock-level data in them stops on 31 December 2021; later years are held back for a final test.
+
 *Results come from historical backtests and are shared for research and education only. They are not investment advice.*
 
 ---

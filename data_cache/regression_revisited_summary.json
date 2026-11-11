@@ -1,0 +1,318 @@
+{
+ "test_period": [
+  "2018-09-01",
+  "2021-12-31"
+ ],
+ "train_period": [
+  "2007-02-01",
+  "2018-08-31"
+ ],
+ "cost_bps": 5.0,
+ "universe_2007": {
+  "original": 402,
+  "by_date": 231
+ },
+ "tables": {
+  "0. Original method": {
+   "Benchmark": {
+    "ann_return": 0.2270152305,
+    "ann_vol": 0.2393103168,
+    "sharpe": 0.9486228324,
+    "growth_of_1": 1.9322643737,
+    "max_drawdown": 0.3833616808,
+    "time_long": 1.0,
+    "turnover_per_year": 0.0,
+    "t_vs_benchmark": null
+   },
+   "Linear": {
+    "ann_return": 0.1676372429,
+    "ann_vol": 0.2028901858,
+    "sharpe": 0.8262461895,
+    "growth_of_1": 1.6295001534,
+    "max_drawdown": 0.3416046191,
+    "time_long": 0.7727659746,
+    "turnover_per_year": 45.7254429776,
+    "t_vs_benchmark": -1.4724604689
+   },
+   "Lasso": {
+    "ann_return": 0.2284974397,
+    "ann_vol": 0.2390858718,
+    "sharpe": 0.9557128489,
+    "growth_of_1": 1.9421707173,
+    "max_drawdown": 0.3829929578,
+    "time_long": 0.9997704963,
+    "turnover_per_year": 0.3864788158,
+    "t_vs_benchmark": 1.2579279134
+   },
+   "Logistic": {
+    "ann_return": 0.2092332379,
+    "ann_vol": 0.2108104993,
+    "sharpe": 0.9925181081,
+    "growth_of_1": 1.8615890999,
+    "max_drawdown": 0.3255786998,
+    "time_long": 0.8789218111,
+    "turnover_per_year": 35.9718032855,
+    "t_vs_benchmark": -0.5341952347
+   },
+   "Tree": {
+    "ann_return": 0.2163590545,
+    "ann_vol": 0.1771904924,
+    "sharpe": 1.2210534075,
+    "growth_of_1": 1.9484190915,
+    "max_drawdown": 0.2135865256,
+    "time_long": 0.6821681882,
+    "turnover_per_year": 89.7460212728,
+    "t_vs_benchmark": -0.1728908604
+   }
+  },
+  "1. + index membership by date": {
+   "Benchmark": {
+    "ann_return": 0.2058197957,
+    "ann_vol": 0.2387439646,
+    "sharpe": 0.8620942359,
+    "growth_of_1": 1.8018149019,
+    "max_drawdown": 0.3869265703,
+    "time_long": 1.0,
+    "turnover_per_year": 0.0,
+    "t_vs_benchmark": null
+   },
+   "Linear": {
+    "ann_return": 0.1585574845,
+    "ann_vol": 0.1966625565,
+    "sharpe": 0.8062413469,
+    "growth_of_1": 1.5880822705,
+    "max_drawdown": 0.3262787353,
+    "time_long": 0.715899799,
+    "turnover_per_year": 56.8795152338,
+    "t_vs_benchmark": -1.0799637091
+   },
+   "Lasso": {
+    "ann_return": 0.2137139748,
+    "ann_vol": 0.2360398544,
+    "sharpe": 0.9054147881,
+    "growth_of_1": 1.8536390806,
+    "max_drawdown": 0.3869265703,
+    "time_long": 0.9967550134,
+    "turnover_per_year": 1.2222646836,
+    "t_vs_benchmark": 1.1463407965
+   },
+   "Logistic": {
+    "ann_return": 0.1992383194,
+    "ann_vol": 0.2093251428,
+    "sharpe": 0.9518126527,
+    "growth_of_1": 1.802940873,
+    "max_drawdown": 0.3170633256,
+    "time_long": 0.8807266186,
+    "turnover_per_year": 36.9971309148,
+    "t_vs_benchmark": -0.1869258289
+   },
+   "Tree": {
+    "ann_return": 0.200403749,
+    "ann_vol": 0.1859098138,
+    "sharpe": 1.0779621844,
+    "growth_of_1": 1.8382466451,
+    "max_drawdown": 0.2337408387,
+    "time_long": 0.7330478311,
+    "turnover_per_year": 83.3536504611,
+    "t_vs_benchmark": -0.1043901904
+   }
+  },
+  "2. + 5 bp trading costs": {
+   "Benchmark": {
+    "ann_return": 0.2058197957,
+    "ann_vol": 0.2387439646,
+    "sharpe": 0.8620942359,
+    "growth_of_1": 1.8018149019,
+    "max_drawdown": 0.3869265703,
+    "time_long": 1.0,
+    "turnover_per_year": 0.0,
+    "t_vs_benchmark": null
+   },
+   "Linear": {
+    "ann_return": 0.1301177268,
+    "ann_vol": 0.1967100762,
+    "sharpe": 0.6614695563,
+    "growth_of_1": 1.4447911723,
+    "max_drawdown": 0.3276394377,
+    "time_long": 0.715899799,
+    "turnover_per_year": 56.8795152338,
+    "t_vs_benchmark": -1.7291439888
+   },
+   "Lasso": {
+    "ann_return": 0.2131028424,
+    "ann_vol": 0.2360534682,
+    "sharpe": 0.9027736136,
+    "growth_of_1": 1.8498568126,
+    "max_drawdown": 0.3869272983,
+    "time_long": 0.9967550134,
+    "turnover_per_year": 1.2222646836,
+    "t_vs_benchmark": 1.0633019717
+   },
+   "Logistic": {
+    "ann_return": 0.180739754,
+    "ann_vol": 0.2093485224,
+    "sharpe": 0.8633438243,
+    "growth_of_1": 1.695404155,
+    "max_drawdown": 0.318589145,
+    "time_long": 0.8807266186,
+    "turnover_per_year": 36.9971309148,
+    "t_vs_benchmark": -0.7119546615
+   },
+   "Tree": {
+    "ann_return": 0.1587269238,
+    "ann_vol": 0.1859720575,
+    "sharpe": 0.8534987779,
+    "growth_of_1": 1.6004139011,
+    "max_drawdown": 0.2376632983,
+    "time_long": 0.7330478311,
+    "turnover_per_year": 83.3536504611,
+    "t_vs_benchmark": -0.9078749195
+   }
+  },
+  "3. Sector-relative, long-short, daily": {
+   "Linear": {
+    "IC": 0.0131619559,
+    "t": 2.1262918368,
+    "sharpe_before_costs": 0.7594774905,
+    "sharpe_after_costs": -1.2234744065,
+    "ann_return_after_costs": -0.200961833,
+    "turnover_per_year": 651.2967492889
+   },
+   "Lasso": {
+    "IC": 0.0138249814,
+    "t": 2.2295863583,
+    "sharpe_before_costs": 0.8280460082,
+    "sharpe_after_costs": -1.1660889497,
+    "ann_return_after_costs": -0.1919272053,
+    "turnover_per_year": 656.2989282761
+   },
+   "Logistic": {
+    "IC": 0.0135391673,
+    "t": 2.1837194165,
+    "sharpe_before_costs": 0.7567436977,
+    "sharpe_after_costs": -1.2268101414,
+    "ann_return_after_costs": -0.2024406135,
+    "turnover_per_year": 654.4971537166
+   },
+   "Tree": {
+    "IC": 0.0106223516,
+    "t": 1.9758114597,
+    "sharpe_before_costs": 0.7756589259,
+    "sharpe_after_costs": -1.5424956856,
+    "ann_return_after_costs": -0.2368143678,
+    "turnover_per_year": 711.7679216419
+   }
+  },
+  "4. 21-day horizon, monthly": {
+   "Linear": {
+    "IC": 0.0205628397,
+    "t": 0.7985971605,
+    "sharpe_before_costs": 0.5941423923,
+    "sharpe_after_costs": 0.4766706308,
+    "ann_return_after_costs": 0.0789489088,
+    "turnover_per_year": 38.6639426095
+   },
+   "Lasso": {
+    "IC": 0.0205690705,
+    "t": 0.798823567,
+    "sharpe_before_costs": 0.5941423923,
+    "sharpe_after_costs": 0.4766706308,
+    "ann_return_after_costs": 0.0789489088,
+    "turnover_per_year": 38.6639426095
+   },
+   "Logistic": {
+    "IC": 0.0205852251,
+    "t": 0.8267226521,
+    "sharpe_before_costs": 0.4681895357,
+    "sharpe_after_costs": 0.3422679066,
+    "ann_return_after_costs": 0.0530281851,
+    "turnover_per_year": 38.7923618043
+   },
+   "Tree": {
+    "IC": -0.0002952096,
+    "t": -0.0258099494,
+    "sharpe_before_costs": 0.1567911999,
+    "sharpe_after_costs": -0.1676471131,
+    "ann_return_after_costs": -0.0104793604,
+    "turnover_per_year": 40.4254555937
+   }
+  }
+ },
+ "ladder": [
+  {
+   "step": "0. Original method",
+   "best model": "Tree",
+   "growth of $1": 1.9484190915,
+   "benchmark": 1.9322643737,
+   "Sharpe": 1.2210534075,
+   "benchmark Sharpe": 0.9486228324,
+   "t vs benchmark": -0.1728908604,
+   "time long": 0.6821681882,
+   "IC": null,
+   "t of IC": null,
+   "Sharpe before costs": null,
+   "Sharpe after costs": null,
+   "turnover per year": null
+  },
+  {
+   "step": "1. + index membership by date",
+   "best model": "Lasso",
+   "growth of $1": 1.8536390806,
+   "benchmark": 1.8018149019,
+   "Sharpe": 0.9054147881,
+   "benchmark Sharpe": 0.8620942359,
+   "t vs benchmark": 1.1463407965,
+   "time long": 0.9967550134,
+   "IC": null,
+   "t of IC": null,
+   "Sharpe before costs": null,
+   "Sharpe after costs": null,
+   "turnover per year": null
+  },
+  {
+   "step": "2. + 5 bp trading costs",
+   "best model": "Lasso",
+   "growth of $1": 1.8498568126,
+   "benchmark": 1.8018149019,
+   "Sharpe": 0.9027736136,
+   "benchmark Sharpe": 0.8620942359,
+   "t vs benchmark": 1.0633019717,
+   "time long": 0.9967550134,
+   "IC": null,
+   "t of IC": null,
+   "Sharpe before costs": null,
+   "Sharpe after costs": null,
+   "turnover per year": null
+  },
+  {
+   "step": "3. Sector-relative, long-short, daily",
+   "best model": "Lasso",
+   "growth of $1": null,
+   "benchmark": null,
+   "Sharpe": null,
+   "benchmark Sharpe": null,
+   "t vs benchmark": null,
+   "time long": null,
+   "IC": 0.0138249814,
+   "t of IC": 2.2295863583,
+   "Sharpe before costs": 0.8280460082,
+   "Sharpe after costs": -1.1660889497,
+   "turnover per year": 656.2989282761
+  },
+  {
+   "step": "4. 21-day horizon, monthly",
+   "best model": "Linear",
+   "growth of $1": null,
+   "benchmark": null,
+   "Sharpe": null,
+   "benchmark Sharpe": null,
+   "t vs benchmark": null,
+   "time long": null,
+   "IC": 0.0205628397,
+   "t of IC": 0.7985971605,
+   "Sharpe before costs": 0.5941423923,
+   "Sharpe after costs": 0.4766706308,
+   "turnover per year": 38.6639426095
+  }
+ ]
+}

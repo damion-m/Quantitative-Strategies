@@ -1,0 +1,216 @@
+{
+ "confirmed": true,
+ "confirm": {
+  "1990-2009 (new)": {
+   "rank correlation": 0.1039640115,
+   "t": 2.0989671223,
+   "days": 4790.0
+  },
+  "2010-2021 (where it was found)": {
+   "rank correlation": 0.2611932352,
+   "t": 4.6391059072,
+   "days": 3021.0
+  },
+  "2022-2026 (new)": {
+   "rank correlation": 0.0769655352,
+   "t": 0.7122324477,
+   "days": 1198.0
+  },
+  "both new periods pooled": {
+   "rank correlation": 0.0962217951,
+   "t": 2.1600782624,
+   "days": 5988.0
+  }
+ },
+ "by_third": {
+  "calm": {
+   "mean next-21d return %": 0.5690272337,
+   "share of periods up %": 64.0727489565,
+   "worst 5% of periods, avg %": -6.0228829277,
+   "days": 3354.0
+  },
+  "normal": {
+   "mean next-21d return %": 0.5352268999,
+   "share of periods up %": 64.3933685004,
+   "worst 5% of periods, avg %": -10.7267184125,
+   "days": 2637.0
+  },
+  "fearful": {
+   "mean next-21d return %": 1.0989045156,
+   "share of periods up %": 63.921957672,
+   "worst 5% of periods, avg %": -14.6081687013,
+   "days": 3020.0
+  }
+ },
+ "slope_2022": {
+  "corr": -0.19983860188007072,
+  "t": -2.353389068878396
+ },
+ "vol": {
+  "Trailing 20-day volatility": {
+   "QLIKE": 0.5782091161,
+   "mean error (vol pts)": -0.0508469141,
+   "rank IC within sector": 0.4617865561,
+   "stock-days": 876973.0
+  },
+  "Range-based volatility alone": {
+   "QLIKE": 0.4502468573,
+   "mean error (vol pts)": 0.9818586302,
+   "rank IC within sector": 0.498955517,
+   "stock-days": 876973.0
+  },
+  "Model": {
+   "QLIKE": 0.4271015129,
+   "mean error (vol pts)": -1.6054218525,
+   "rank IC within sector": 0.5078606417,
+   "stock-days": 876973.0
+  }
+ },
+ "vol_dm": {
+  "dm": -8.143936967510674,
+  "p": 3.826284618817428e-16,
+  "n": 2496
+ },
+ "range": {
+  "M0 trailing vol, normal": {
+   "50% band: inside %": 49.6147543881,
+   "50% band: width %": 9.6706457779,
+   "50% band: interval score": 18.74738477,
+   "90% band: inside %": 86.5529497487,
+   "90% band: width %": 23.5837586955,
+   "90% band: interval score": 35.951024606
+  },
+  "M1 trailing vol, past quantiles": {
+   "50% band: inside %": 49.5323117131,
+   "50% band: width %": 9.1610112792,
+   "50% band: interval score": 18.3432385469,
+   "90% band: inside %": 89.1305661634,
+   "90% band: width %": 25.7256279184,
+   "90% band: interval score": 36.2240650428
+  },
+  "M2 model vol, past quantiles": {
+   "50% band: inside %": 48.556100845,
+   "50% band: width %": 8.4780956133,
+   "50% band: interval score": 18.1988637464,
+   "90% band: inside %": 88.2295730719,
+   "90% band: width %": 22.4652686217,
+   "90% band: interval score": 34.7521485203
+  },
+  "M3 model vol + VIX-tilted centre": {
+   "50% band: inside %": 48.3039510506,
+   "50% band: width %": 8.4780956133,
+   "50% band: interval score": 18.2499881937,
+   "90% band: inside %": 87.9505935457,
+   "90% band: width %": 22.4652686217,
+   "90% band: interval score": 34.911038283
+  }
+ },
+ "range_by_state": {
+  "M0 trailing vol, normal": {
+   "calm": 85.6471627645,
+   "normal": 86.137634393,
+   "fearful": 89.3557990467
+  },
+  "M2 model vol, past quantiles": {
+   "calm": 86.747765589,
+   "normal": 88.5766249156,
+   "fearful": 90.9942416248
+  }
+ },
+ "centre": {
+  "oos_r2": 0.008693565764016364,
+  "dm": {
+   "dm": -0.34501467924218965,
+   "p": 0.730083335113898,
+   "n": 2496
+  },
+  "score_change": 0.15888976275371647
+ },
+ "strategy": {
+  "Hold": {
+   "Sharpe, average stock": 0.6760162794,
+   "worst drawdown, average stock %": 47.6146605801,
+   "annual return %": 18.9513164779,
+   "annual volatility %": 29.1849015835,
+   "average exposure": 1.0
+  },
+  "Sized by trailing volatility": {
+   "Sharpe, average stock": 0.7110338803,
+   "worst drawdown, average stock %": 36.9588594116,
+   "annual return %": 16.1120088678,
+   "annual volatility %": 23.4926923464,
+   "average exposure": 0.9270903586
+  },
+  "Sized by model volatility": {
+   "Sharpe, average stock": 0.7038359585,
+   "worst drawdown, average stock %": 36.0270842381,
+   "annual return %": 15.5089618768,
+   "annual volatility %": 22.8166342065,
+   "average exposure": 0.9044311444
+  }
+ },
+ "better_share": {
+  "Sized by trailing volatility": 64.15094339622641,
+  "Sized by model volatility": 63.07277628032345
+ },
+ "book": {
+  "Hold": {
+   "ann_return": 0.186689337,
+   "ann_vol": 0.1730913178,
+   "sharpe": 1.0785597996,
+   "max_drawdown": 0.3873199755
+  },
+  "Sized by trailing volatility": {
+   "ann_return": 0.162210665,
+   "ann_vol": 0.130569016,
+   "sharpe": 1.2423365809,
+   "max_drawdown": 0.2331344802
+  },
+  "Sized by model volatility": {
+   "ann_return": 0.155078303,
+   "ann_vol": 0.1244418871,
+   "sharpe": 1.2461905439,
+   "max_drawdown": 0.224766872
+  }
+ },
+ "aapl": {
+  "Hold": {
+   "ann_return": 0.2773332049,
+   "ann_vol": 0.2830273284,
+   "sharpe": 0.979881365,
+   "max_drawdown": 0.4379717701
+  },
+  "Sized by trailing volatility": {
+   "ann_return": 0.2655707707,
+   "ann_vol": 0.2495761878,
+   "sharpe": 1.0640869752,
+   "max_drawdown": 0.420828746
+  },
+  "Sized by model volatility": {
+   "ann_return": 0.2561764886,
+   "ann_vol": 0.2366477203,
+   "sharpe": 1.0825225284,
+   "max_drawdown": 0.4033237184
+  }
+ },
+ "aapl_inside_90": 0.811219946571683,
+ "tension": {
+  "calm": {
+   "average exposure (model rule)": 0.9652426746,
+   "market return over the next 21 days %": 0.6008127221
+  },
+  "normal": {
+   "average exposure (model rule)": 0.912358143,
+   "market return over the next 21 days %": 1.0531090513
+  },
+  "fearful": {
+   "average exposure (model rule)": 0.7501392674,
+   "market return over the next 21 days %": 2.9843842798
+  }
+ },
+ "oos": [
+  "2012-01-01",
+  "2021-12-31"
+ ],
+ "stocks": 371
+}

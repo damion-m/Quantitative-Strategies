@@ -1,0 +1,21 @@
+{
+ "written_utc": "2026-11-11T13:14:36+00:00",
+ "features": [
+  "gk_vol",
+  "downside_vol",
+  "vol_of_vol",
+  "rel_ret_21",
+  "sue",
+  "days_since_earnings",
+  "vix_pct",
+  "vix_slope"
+ ],
+ "outcomes": [
+  "return over the next 21 trading days",
+  "realized volatility of the next 21 trading days"
+ ],
+ "universe": "S&P 500 with index-join dates, 2010-01-01 to 2021-12-31 (later data held back)",
+ "tests": "stock-specific features: within-sector rank IC; market-state features (vix_pct, vix_slope): time-series rank correlation with the equal-weight market outcome",
+ "pass_mark": "|t| > 2 over the whole period AND the same sign in 2010-2015 and 2016-2021 AND surviving Benjamini-Hochberg at 10% across the eight features, per outcome",
+ "expectation": "events (sue) have the best chance for returns; risk and market-state features should predict volatility; rel_ret_21 probably nothing"
+}

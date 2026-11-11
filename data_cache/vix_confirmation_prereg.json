@@ -1,0 +1,22 @@
+{
+ "written_utc": "2026-11-11T13:25:41+00:00",
+ "claim_found_on_2010_2021": "when VIX is high against its own history so far (expanding percentile), the next-21-day market return is higher",
+ "confirmation_data": "S&P 500 index (^GSPC, price only) and ^VIX, 1990-2009 and 2022-2026: periods not used to find the claim. Index level only; no individual stocks after 2021.",
+ "test": "rank correlation of vix_pct (expanding percentile, 252-day minimum) with the next-21-day index return; Newey-West t with 20 lags; identical to the original test",
+ "confirmed_if": "the correlation is positive in BOTH new periods AND its t-statistic exceeds 2 on the two new periods pooled",
+ "secondary": "vix_slope (VIX3M / VIX - 1) on 2022-2026 only (VIX3M does not exist before 2006); reported, not decided on",
+ "range_forecast_methods": [
+  "M0 trailing 20-day volatility with normal quantiles (the original approach)",
+  "M1 trailing volatility with empirical quantiles",
+  "M2 model volatility (pooled walk-forward regression) with empirical quantiles",
+  "M3 M2 plus a VIX-conditional centre"
+ ],
+ "range_forecast_scoring": "out of sample 2012-2021, S&P 500 members: share of outcomes inside the 50% and 90% bands, average width, interval score (lower is better)",
+ "strategies": [
+  "hold",
+  "exposure = min(1, target / trailing volatility)",
+  "exposure = min(1, target / model volatility)"
+ ],
+ "strategy_scoring": "weekly rebalance, 5 bp on turnover, 2012-2021; Sharpe ratio and worst drawdown averaged over stocks, and for AAPL",
+ "known_weakness": "the features in the volatility model were chosen after seeing 2010-2021, the same period it is scored on"
+}

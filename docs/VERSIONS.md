@@ -20,5 +20,5 @@ to wording.
 | Risk parity | 1 | 2026 | `risk_parity_backtest.ipynb` | |
 | Shared library | 1 | 2026 | `func_lib.py` | |
 
-Helper modules added with the revisions: `cross_section.py`, `vol_eval.py`, `ts_features.py`,
-`range_forecast.py`. Rules fixed before each test are kept in `data_cache/*_prereg.json`.
+Helper modules added with the revisions, now in `quantlib/`: `sp500_panel.py` (first published as
+`cross_section.py`), `vol_eval.py`, `ts_features.py`, `range_forecast.py`. Rules fixed before each test are kept in `data/*_prereg.json`.

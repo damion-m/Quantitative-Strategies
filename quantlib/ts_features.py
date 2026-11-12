@@ -16,7 +16,7 @@ from typing import Dict
 import numpy as np
 import pandas as pd
 
-from vol_eval import newey_west_variance
+from .vol_eval import newey_west_variance
 
 TRADING_DAYS = 252
 

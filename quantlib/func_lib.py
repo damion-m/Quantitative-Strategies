@@ -1,8 +1,8 @@
 """Shared helpers for the quant notebooks.
 
 The code now lives in the ``quantlib`` package, split by the sections this file used to have.
-This module re-exports every name it used to define, so ``import func_lib`` followed by
-``func_lib.name(...)``, and ``from func_lib import name``, keep working unchanged.
+This module re-exports every name it used to define, so ``from quantlib import func_lib`` followed by
+``func_lib.name(...)``, and ``from quantlib.func_lib import name``, keep working unchanged.
 
 Layout
     quantlib/_common.py        constants shared across modules (TRADING_DAYS)

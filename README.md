@@ -20,7 +20,7 @@ Each project asks a harder question than the last, building on what came before:
 | 04 | GBM options RL agent | Can it trade options that it prices itself? | `gbm_options_rl_agent.ipynb` |
 | + | Risk parity | How should risk be balanced across asset classes? | `risk_parity_backtest.ipynb` |
 
-Every notebook draws on `func_lib.py`, a shared library for data handling, chronological splits, backtests, performance statistics, the DQN agent and its episode runners, option pricing and volatility models (including a small `GBM` class), and a common chart theme. Its core routines have been checked independently against reference implementations.
+Every notebook draws on `func_lib` (in the `quantlib/` package), a shared library for data handling, chronological splits, backtests, performance statistics, the DQN agent and its episode runners, option pricing and volatility models (including a small `GBM` class), and a common chart theme. Its core routines have been checked independently against reference implementations.
 
 ## What's new
 
@@ -28,7 +28,7 @@ Every notebook draws on `func_lib.py`, a shared library for data handling, chron
 - **Live trading desk.** The trained DQN agent runs in your browser at [damionm.io/desk](https://damionm.io/desk). You can replay each options episode, compare episodes side by side, and see every trade.
 - **Refreshed options results.** The GBM options agent was retrained, and the results below reflect the latest clean run, including per-episode results and updated benchmarks.
 - **Refreshed charts.** Every project chart has been redrawn in a consistent graphite theme.
-- **A `GBM` class.** `func_lib.py` now has a small `GBM` class that fits μ and σ, gives a forecast range, simulates paths and values options, built on the same tested pricing functions.
+- **A `GBM` class.** `func_lib` now has a small `GBM` class that fits μ and σ, gives a forecast range, simulates paths and values options, built on the same tested pricing functions.
 - **Clearer names.** In the options notebook, `rf` is always the risk-free rate, `log_ret` the log returns and `features` the daily feature table.
 - **Simpler repository.** The HTML slide decks have been retired in favour of the website, and the regression work is consolidated into a single notebook.
 
@@ -49,7 +49,7 @@ Builds and charts AAPL features from March 2020 to August 2024: 20/50-day moving
 
 - AAPL rose about 240% and closed above its 50-day average on 62% of days.
 - RSI was above 70 on 11% of days and below 30 on 1%, typical of a long uptrend.
-- Saves `AAPL_trading_features.csv`, which supplies the seven features the RL agent sees.
+- Saves `data/AAPL_trading_features.csv`, which supplies the seven features the RL agent sees.
 
 ## 03 · RL trading agent (DQN)
 
@@ -78,7 +78,7 @@ Extends the agent to options on SPY, using VIX as the implied-volatility proxy:
 3. **Pricing engine:** Monte Carlo with antithetic variates, checked against Black-Scholes, plus the Greeks. A `GBM` class wraps the engine for one set of parameters:
 
    ```python
-   from func_lib import GBM
+   from quantlib.func_lib import GBM
    model = GBM.fit(log_returns)               # maximum-likelihood mu and sigma
    model.forecast(S0=500, T=63/252)           # expected price, median and 90% range
    paths = model.simulate(500, 63/252, 63, 20_000, seed=42)
@@ -100,7 +100,7 @@ Extends the agent to options on SPY, using VIX as the implied-volatility proxy:
 
 - The agent placed 168 trades and learned on its own to sell puts, collecting the variance risk premium: implied volatility exceeded the volatility that followed on 85% of days, by 3.8 points on average.
 - It came close to SPY's risk-adjusted return with a shallower drawdown, while the pricing-model rule alone and random trading both lost money.
-- Every trade is logged by position type (long or short, call or put). Full design notes are in `gbm-options-rl-agent-design.md`.
+- Every trade is logged by position type (long or short, call or put). Full design notes are in [docs/gbm-options-rl-agent-design.md](docs/gbm-options-rl-agent-design.md).
 
 ## + · Risk parity
 
@@ -128,7 +128,7 @@ I'm currently building a walk-forward research environment for detecting market 
 pip install numpy pandas scipy scikit-learn statsmodels plotly yfinance tensorflow keras nbformat
 ```
 
-1. Keep `func_lib.py` and the `quantlib/` folder beside it in the same folder as the notebooks, or in the parent folder.
+1. Keep the `quantlib/` and `data/` folders beside the notebooks (the repository's layout). Notebooks import the library with `from quantlib import func_lib`.
 2. Run `time_series.ipynb` before `rl_trading_agent.ipynb`; it writes the agent's input CSV.
 3. The other notebooks download their own data with `yfinance` and need internet access.
 4. Each notebook's settings are in its **Configuration** cell, and every code cell opens with a short explanation of what it does.
@@ -137,21 +137,22 @@ pip install numpy pandas scipy scikit-learn statsmodels plotly yfinance tensorfl
 ## Repository layout
 
 ```
-func_lib.py                          shared helpers (data, backtests, agent, pricing, GBM class, charts)
-quantlib/                            the code behind func_lib.py, one module per section (see below)
-tests/                               unit tests for the quantlib classes
 regression_models_comparison.ipynb   01 · regression and classification strategies vs benchmark
 time_series.ipynb                    02 · AAPL feature engineering and charts
 rl_trading_agent.ipynb               03 · DQN stock-trading agent
 gbm_options_rl_agent.ipynb           04 · GBM pricing, volatility forecasts, options DQN agent
 risk_parity_backtest.ipynb           +  · inverse-volatility risk parity
-AAPL_trading_features.csv            agent input produced by time_series.ipynb
-gbm-options-rl-agent-design.md       design notes for the GBM options RL agent
+(the revised notebooks are listed under Versions below)
+
+quantlib/                            all the Python code: the shared library, the revisions' research modules, and tests/
+data/                                all the data: frozen snapshots, pass marks fixed before each test, result summaries,
+                                     and the AAPL feature files written by time_series.ipynb
+docs/                                VERSIONS.md (the version history) and the GBM options agent's design notes
 ```
 
 ### The shared library
 
-The code that used to sit in the single file `func_lib.py` now lives in the `quantlib/` package, split by that file's sections. `func_lib.py` re-exports every name, so `import func_lib` and `from func_lib import ...` work exactly as before, and importing it still applies the dark chart theme.
+The code that used to sit in the single file `func_lib.py` now lives in the `quantlib/` package, split by that file's sections. `quantlib/func_lib.py` re-exports every name, so after `from quantlib import func_lib` every `func_lib.name(...)` call works exactly as before, and importing it still applies the dark chart theme.
 
 ```
 quantlib/theme.py          Plotly dark theme and small chart helpers
@@ -164,6 +165,12 @@ quantlib/vol.py            variance proxy, GARCH(1,1), HAR-RV, forecast metrics,
 quantlib/portfolio.py      performance statistics, stats tables, risk parity and portfolio backtests
 quantlib/options_rl.py     the options RL environment (OptionsEnv) and its reports
 quantlib/_common.py        shared constants (TRADING_DAYS)
+quantlib/func_lib.py       re-exports every name above, as the old single file did
+quantlib/sp500_panel.py    S&P 500 panel by index-join date, momentum features, sector ranks, rank IC (the revisions)
+quantlib/vol_eval.py       QLIKE, Diebold-Mariano, Mincer-Zarnowitz, forecast blends (the revisions)
+quantlib/ts_features.py    stationary features and predictive tests (the revisions)
+quantlib/range_forecast.py price as a range: volatility model, quantiles, interval scores (the revisions)
+quantlib/tests/            unit tests
 ```
 
 A few classes hold the parts that carry state. They sit alongside the functions, which still work and return exactly the same values as before:
@@ -173,24 +180,23 @@ A few classes hold the parts that carry state. They sit alongside the functions,
 - `GarchForecaster` and `HarForecaster`: `fit()`, `forecast()` and `walk_forward()` around the GARCH(1,1) and HAR-RV functions.
 - `OptionContract`: one option's strike, expiry and kind, with `.price()`, `.greeks()` and `.implied_vol()`.
 
-`create_hist_prices` and `compute_returns` are the snake_case names of `createHistPrices` and `computingReturns`, which still work. The tests in `tests/` check all of this: `python -m unittest discover -s tests`.
+`create_hist_prices` and `compute_returns` are the snake_case names of `createHistPrices` and `computingReturns`, which still work. The tests in `quantlib/tests/` check all of this: `python -m unittest discover -s quantlib/tests`.
 
-The root-level `cross_section.py` used by the revised notebooks is a separate module from `quantlib/cross_section.py`.
+`quantlib/sp500_panel.py` (the revisions' S&P 500 panel tools, formerly a root-level `cross_section.py`) is separate from `quantlib/cross_section.py` (the original notebooks' helpers).
 
 ## Versions
 
-Projects are updated as my knowledge improves, and nothing is overwritten. Version 1 of every project is the notebook as first published (git tag `v1`); each later version is a new, dated notebook beside it. The full history is in [VERSIONS.md](VERSIONS.md).
+Projects are updated as my knowledge improves, and nothing is overwritten. Version 1 of every project is the notebook as first published (git tag `v1`); each later version is a new, dated notebook beside it. The full history is in [docs/VERSIONS.md](docs/VERSIONS.md).
 
 ```
 regression_models_revisited.ipynb        01 · version 2: index membership by date, costs, sector-relative test
 time_series_features_revisited.ipynb     02 · versions 2 and 3: do the features predict anything?
 price_range_forecast.ipynb               02 · version 4: a forecast of price as a range, sizing by forecast risk
 volatility_forecasts_revisited.ipynb     04 · version 2: the five volatility forecasts, tested formally
-cross_section.py  vol_eval.py  ts_features.py  range_forecast.py     helper modules for the revisions
-data_cache/                              frozen data snapshots, pass marks fixed before each test, result summaries
 ```
+Their helper modules are in `quantlib/` and their data in `data/`.
 
-The revised notebooks read frozen snapshots from `data_cache/`, so they reproduce exactly. Stock-level data in them stops on 31 December 2021; later years are held back for a final test.
+The revised notebooks read frozen snapshots from `data/`, so they reproduce exactly. Stock-level data in them stops on 31 December 2021; later years are held back for a final test.
 
 *Results come from historical backtests and are shared for research and education only. They are not investment advice.*
 

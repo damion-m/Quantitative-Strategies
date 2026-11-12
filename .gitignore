@@ -1,0 +1,28 @@
+# Only the published repository is tracked: the README, the notebooks, data/, docs/ and quantlib/.
+# Everything else in a local working copy (saved models, trade logs, drafts, notes, unpublished
+# research notebooks, editor files) is ignored, so it can never be committed by accident.
+
+/*
+!/.gitignore
+!/README.md
+!/data/
+!/docs/
+!/quantlib/
+
+# the published notebooks
+!/regression_models_comparison.ipynb
+!/regression_models_revisited.ipynb
+!/time_series.ipynb
+!/time_series_features_revisited.ipynb
+!/price_range_forecast.ipynb
+!/rl_trading_agent.ipynb
+!/gbm_options_rl_agent.ipynb
+!/volatility_forecasts_revisited.ipynb
+!/risk_parity_backtest.ipynb
+
+# never tracked, wherever they appear
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.DS_Store
+*.keras

@@ -24,7 +24,7 @@ from typing import Dict, Iterable, Optional
 import numpy as np
 import pandas as pd
 
-DATA = pathlib.Path(__file__).resolve().parent / 'data_cache'
+DATA = pathlib.Path(__file__).resolve().parents[1] / 'data'
 TRADING_DAYS = 252
 
 

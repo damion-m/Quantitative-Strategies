@@ -1,8 +1,10 @@
 """quantlib: the shared research library behind the quant notebooks.
 
 This package holds the code that used to live in the single file ``func_lib.py``, split by that
-file's sections. ``func_lib.py`` remains as a thin module that re-exports every name, so existing
-notebooks keep using ``import func_lib`` unchanged.
+file's sections. ``quantlib/func_lib.py`` remains as a thin module that re-exports every name, so
+notebooks use ``from quantlib import func_lib`` and every ``func_lib.name(...)`` call works unchanged.
+The research modules of the revised notebooks live here too: ``sp500_panel``, ``vol_eval``,
+``ts_features`` and ``range_forecast``.
 
 Modules
     _common        constants shared across modules (TRADING_DAYS)

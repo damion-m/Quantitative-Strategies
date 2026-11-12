@@ -19,7 +19,7 @@ from unittest import mock
 
 os.environ.setdefault('TF_CPP_MIN_LOG_LEVEL', '3')   # keep TensorFlow's C++ log noise out of the test output
 
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))   # the repository root
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
@@ -27,9 +27,9 @@ import numpy as np                      # noqa: E402
 import pandas as pd                     # noqa: E402
 import plotly.graph_objects as go       # noqa: E402
 
-import func_lib                         # noqa: E402
+from quantlib import func_lib           # noqa: E402
 import quantlib                         # noqa: E402
-from func_lib import (                  # noqa: E402
+from quantlib.func_lib import (         # noqa: E402
     ACTIONS, OPTION_ACTIONS, EpisodeResult, GarchForecaster, HarForecaster, OptionContract,
     OptionsEnv, OptionsEpisodeResult, TradingEnv, run_episode, run_options_episode,
 )

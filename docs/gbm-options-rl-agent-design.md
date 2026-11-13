@@ -1,5 +1,5 @@
 # GBM Options Pricing & RL Long/Short Call/Put Agent: Design Notes
-*Notebook: `gbm_options_rl_agent.ipynb`. Helpers are in `func_lib.py` sections 6–7. Built 2026-11-06; selling added the same day.*
+*Notebook: `gbm_options_rl_agent.ipynb`. Helpers are in `quantlib/options.py`, `quantlib/vol.py` and `quantlib/options_rl.py`, re-exported by `quantlib/func_lib.py`. Built 2026-11-06; selling added the same day.*
 
 ## Pipeline
 1. **Data:** SPY OHLC (yfinance, adjusted). ^VIX is the implied-vol proxy. ^IRX is the risk-free rate.

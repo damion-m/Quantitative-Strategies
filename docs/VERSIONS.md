@@ -16,9 +16,11 @@ to wording.
 | DQN trading agent | 1 | 2026 | `rl_trading_agent.ipynb` | |
 | GBM options agent | 1 | 2026 | `gbm_options_rl_agent.ipynb` | GBM pricing, five volatility forecasts, DQN options agent |
 | | 2 | 2026-11-11 | `volatility_forecasts_revisited.ipynb` | Formal comparison of the five forecasts, bias tests, combinations, and whether they time the premium |
-| Anomaly detection and regime change | 1 | in progress | `regime_detection_research.ipynb` | |
+| Anomaly detection and regime change | 1 | in progress | `regime_detection_research.ipynb` (not yet published) | |
 | Risk parity | 1 | 2026 | `risk_parity_backtest.ipynb` | |
 | Shared library | 1 | 2026 | `func_lib.py` | |
+| | 2 | Nov 2026 | `quantlib/` | The library split into a `quantlib/` package of ten modules |
+| | 3 | Nov 2026 | `quantlib/` | All code in `quantlib/`, data in `data/` |
 
 Helper modules added with the revisions, now in `quantlib/`: `sp500_panel.py` (first published as
 `cross_section.py`), `vol_eval.py`, `ts_features.py`, `range_forecast.py`. Rules fixed before each test are kept in `data/*_prereg.json`.

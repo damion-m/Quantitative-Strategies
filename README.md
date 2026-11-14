@@ -1,5 +1,7 @@
 # Quantitative Strategies
 
+> **A note on authorship.** I wrote the original notebooks: the questions, the models and the experiments are mine. Claude, Anthropic's AI model, then worked with me to clean them up. It reorganised the shared code into the `quantlib` package, improved readability and charts, fixed bugs it found, and helped write the dated "Revisited" sections. I directed that work and reviewed and merged every change. I say so here because the credit is shared and you should know it.
+
 Welcome, and thank you for stopping by. This repository holds the research behind my quantitative trading portfolio: four connected Python projects, from regression signals and time-series features to a deep Q-network (DQN) stock-trading agent and an options agent that trades calls and puts it prices itself, plus a risk-parity backtest.
 
 You can explore all of the results, with interactive charts and a live trading desk, at **[damionm.io](https://damionm.io)**.
